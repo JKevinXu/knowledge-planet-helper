@@ -539,13 +539,11 @@ function handlePDFModal() {
     url: window.location.href
   });
 
-  // Only show auto-download for eligible PDFs
+  // Auto-download button in modal has been removed
+  // PDFs can still be downloaded through the helper UI and popup
   if (downloadCount >= 5) {
     console.log(`✅ PDF "${fileName}" has ${downloadCount} downloads, eligible for auto-download`);
-    const downloadButton = document.querySelector('app-file-preview .download') as HTMLElement;
-    if (downloadButton) {
-      addAutoDownloadButton(downloadButton, fileName, downloadCount);
-    }
+    // addAutoDownloadButton call removed - no auto-download button in modal
   }
 }
 
