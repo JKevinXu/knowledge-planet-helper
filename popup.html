@@ -4,64 +4,141 @@
   <meta charset="utf-8">
   <style>
     body {
-      width: 320px;
-      height: 400px;
-      padding: 20px;
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      width: 350px;
+      height: 600px;
+      padding: 0;
       margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #ffffff;
+      color: #333;
+      box-shadow: -2px 0 10px rgba(0,0,0,0.1);
     }
     
-    .container {
+    .sidebar {
       display: flex;
       flex-direction: column;
-      height: 100%;
+      height: 100vh;
+      background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
     }
     
-    .header {
+    .sidebar-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
       text-align: center;
-      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.2);
     }
     
-    h1 {
-      margin: 0 0 10px 0;
-      font-size: 20px;
+    .sidebar-header h1 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      font-weight: 600;
     }
     
-    p {
-      margin: 0 0 15px 0;
-      font-size: 14px;
+    .sidebar-header p {
+      margin: 0 0 12px 0;
+      font-size: 13px;
       opacity: 0.9;
     }
     
-    .content {
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255,255,255,0.15);
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+    }
+    
+    .sidebar-content {
       flex: 1;
+      padding: 20px;
       overflow-y: auto;
     }
     
+    .action-section {
+      margin-bottom: 25px;
+    }
+    
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #495057;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .section-title::before {
+      content: '';
+      width: 3px;
+      height: 16px;
+      background: #667eea;
+      margin-right: 8px;
+      border-radius: 2px;
+    }
+    
     button {
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
+      width: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
       color: white;
-      padding: 8px 16px;
-      border-radius: 5px;
+      padding: 12px 16px;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 14px;
+      font-weight: 500;
       transition: all 0.3s ease;
-      margin: 5px 0;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
     }
     
     button:hover {
-      background: rgba(255, 255, 255, 0.3);
       transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    .secondary-button {
+      background: #6c757d;
+      box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+    }
+    
+    .secondary-button:hover {
+      box-shadow: 0 4px 8px rgba(108, 117, 125, 0.4);
     }
     
     #message {
-      margin-top: 15px;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      padding: 12px;
       font-size: 12px;
-      opacity: 0.8;
-      min-height: 20px;
+      color: #495057;
+      min-height: 40px;
+      margin-top: 15px;
+      line-height: 1.4;
+    }
+    
+    .message-success {
+      background: #d4edda !important;
+      border-color: #c3e6cb !important;
+      color: #155724 !important;
+    }
+    
+    .message-warning {
+      background: #fff3cd !important;
+      border-color: #ffeaa7 !important;
+      color: #856404 !important;
+    }
+    
+    .message-error {
+      background: #f8d7da !important;
+      border-color: #f5c6cb !important;
+      color: #721c24 !important;
     }
     
     .status-indicator {
@@ -72,29 +149,202 @@
       margin-right: 8px;
     }
     
-    .status-active { background: #4CAF50; }
-    .status-inactive { background: #f44336; }
+    .status-active { background: #28a745; }
+    .status-inactive { background: #dc3545; }
+    
+    .sidebar-footer {
+      padding: 15px 20px;
+      border-top: 1px solid #dee2e6;
+      background: #f8f9fa;
+      text-align: center;
+      font-size: 11px;
+      color: #6c757d;
+    }
+    
+    .quick-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .stat-number {
+      font-size: 18px;
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 4px;
+    }
+    
+    .stat-label {
+      font-size: 11px;
+      color: #6c757d;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pdf-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      background: white;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 30px 20px;
+      color: #6c757d;
+    }
+
+    .empty-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+      opacity: 0.5;
+    }
+
+    .empty-text {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .empty-subtext {
+      font-size: 11px;
+      opacity: 0.7;
+    }
+
+    .pdf-item {
+      padding: 8px 12px;
+      border-bottom: 1px solid #f1f3f4;
+      transition: background-color 0.2s;
+    }
+
+    .pdf-item:last-child {
+      border-bottom: none;
+    }
+
+    .pdf-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .pdf-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .pdf-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: #212529;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 8px;
+    }
+
+    .pdf-downloads {
+      background: #e9ecef;
+      color: #495057;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .pdf-downloads.eligible {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .pdf-actions {
+      display: flex;
+      justify-content: center;
+      margin-top: 4px;
+    }
+
+    .pdf-btn {
+      padding: 4px 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .pdf-btn-download {
+      background: #28a745;
+      color: white;
+    }
+
+    .pdf-btn-download:hover {
+      background: #218838;
+    }
+
+
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
+  <div class="sidebar">
+    <div class="sidebar-header">
       <h1>📄 Knowledge Planet Helper</h1>
       <p>Automatic PDF Downloader</p>
-      <div style="font-size: 11px; opacity: 0.8;">
+      <div class="status-badge">
         <span class="status-indicator status-active"></span>
         Extension Active
       </div>
     </div>
     
-    <div class="content">
-      <div style="text-align: center; margin-bottom: 15px;">
-        <button id="scanPDFs" style="width: 100%;">
+    <div class="sidebar-content">
+      <div class="quick-stats">
+        <div class="stat-card">
+          <div class="stat-number" id="pdfCount">0</div>
+          <div class="stat-label">PDFs Found</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="eligibleCount">0</div>
+          <div class="stat-label">Eligible</div>
+        </div>
+      </div>
+      
+      <div class="action-section">
+        <div class="section-title">Actions</div>
+        <button id="scanPDFs">
           🔍 Scan Current Page
         </button>
+        <button class="secondary-button" id="clearData">
+          🗑️ Clear Data
+        </button>
+      </div>
+
+      <div class="action-section">
+        <div class="section-title">Scanned PDFs</div>
+        <div id="pdfList" class="pdf-list">
+          <div class="empty-state">
+            <div class="empty-icon">📄</div>
+            <div class="empty-text">No PDFs scanned yet</div>
+            <div class="empty-subtext">Click "Scan Current Page" to find PDFs</div>
+          </div>
+        </div>
       </div>
       
       <div id="message"></div>
+    </div>
+    
+    <div class="sidebar-footer">
+      Knowledge Planet Helper v1.0<br>
+      Made with ❤️ for efficient PDF management
     </div>
   </div>
   

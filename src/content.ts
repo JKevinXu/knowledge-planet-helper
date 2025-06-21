@@ -360,6 +360,15 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
         const modalLoaded = await waitForModalContent();
         
         if (modalLoaded) {
+          // Hide modal during processing to make it less intrusive
+          const modal = document.querySelector('app-file-preview') as HTMLElement;
+          let originalDisplay = '';
+          if (modal) {
+            originalDisplay = modal.style.display;
+            modal.style.display = 'none';
+            console.log(`👻 [${pdfIndex + 1}] Modal hidden during processing`);
+          }
+          
           // Double-check we have the right modal content
           const modalFileName = document.querySelector('app-file-preview .file-name')?.textContent?.trim();
           console.log(`📋 [${pdfIndex + 1}] Modal filename: ${modalFileName}`);
@@ -368,6 +377,11 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
             const { downloadCount } = getPDFInfoFromModal();
             
             console.log(`📊 [${pdfIndex + 1}] PDF: ${fileName} - ${downloadCount} downloads`);
+            
+            // Restore modal visibility before closing (in case user wants to see it)
+            if (modal) {
+              modal.style.display = originalDisplay;
+            }
             
             // Close modal and wait for it to disappear
             await closeModal();
@@ -386,18 +400,31 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
                 console.log(`⏳ [${pdfIndex + 1}] PDF "${fileName}" has only ${downloadCount} downloads, skipping`);
                 resolve(null);
               }
-            }, 300);
+            }, 100); // Reduced wait time
           } else {
             console.warn(`⚠️ [${pdfIndex + 1}] Modal filename mismatch! Expected: ${fileName}, Got: ${modalFileName}`);
+            
+            // Restore modal visibility before closing
+            if (modal) {
+              modal.style.display = originalDisplay;
+            }
+            
             await closeModal();
             await waitForModalToClose();
-            setTimeout(() => resolve(null), 300);
+            setTimeout(() => resolve(null), 100); // Reduced wait time
           }
         } else {
           console.warn(`⚠️ [${pdfIndex + 1}] Could not load modal for PDF: ${fileName}`);
+          
+          // Try to restore modal visibility if it exists
+          const modal = document.querySelector('app-file-preview') as HTMLElement;
+          if (modal) {
+            modal.style.display = '';
+          }
+          
           await closeModal();
           await waitForModalToClose();
-          setTimeout(() => resolve(null), 300);
+          setTimeout(() => resolve(null), 100); // Reduced wait time
         }
       }, 1500); // Further increased timeout for modal to open
     }, 500); // Increased initial delay before clicking
@@ -431,13 +458,67 @@ async function scanAllPDFs(): Promise<PDFInfo[]> {
     // Add delay between each PDF scan to ensure clean state
     if (i < allPDFs.length - 1) {
       console.log(`⏸️ Waiting before next scan...`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay since modals are hidden
     }
   }
   
   console.log(`\n🎯 Scan complete! Found ${eligiblePDFs.length} eligible PDFs (5+ downloads)`);
   
   return eligiblePDFs;
+}
+
+// Function to scan all PDFs and return results for popup
+async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], eligible: number}> {
+  const allPDFs = detectPDFFiles();
+  
+  if (allPDFs.length === 0) {
+    return { success: false, pdfs: [], eligible: 0 };
+  }
+  
+  console.log(`🔍 Starting popup scan of ${allPDFs.length} PDFs...`);
+  
+  const scannedPDFs: any[] = [];
+  let eligibleCount = 0;
+  
+  // Scan each PDF one by one
+  for (let i = 0; i < allPDFs.length; i++) {
+    console.log(`\n--- Scanning PDF ${i + 1}/${allPDFs.length} for popup ---`);
+    
+    const pdfInfo = await scanSinglePDF(allPDFs[i], i);
+    
+    if (pdfInfo) {
+      scannedPDFs.push({
+        fileName: pdfInfo.fileName,
+        downloadCount: pdfInfo.downloadCount,
+        index: i
+      });
+      
+      if (pdfInfo.downloadCount >= 5) {
+        eligibleCount++;
+      }
+    } else {
+      // Add PDF with 0 downloads if scan failed
+      const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
+      scannedPDFs.push({
+        fileName: fileName,
+        downloadCount: 0,
+        index: i
+      });
+    }
+    
+    // Add delay between scans
+    if (i < allPDFs.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
+  
+  console.log(`🎯 Popup scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible`);
+  
+  return { 
+    success: true, 
+    pdfs: scannedPDFs, 
+    eligible: eligibleCount 
+  };
 }
 
 // Function to handle PDF modal interaction
@@ -499,19 +580,40 @@ function addAutoDownloadButton(originalButton: HTMLElement, fileName: string, do
 
   // Add click handler
   autoDownloadButton.addEventListener('click', () => {
-    // Trigger the original download
-    originalButton.click();
+    console.log(`🚀 Auto-download clicked for: ${fileName}`);
     
-    // Send download message to background
-    chrome.runtime.sendMessage({
-      action: 'downloadPDF',
-      fileName: fileName,
-      downloadCount: downloadCount,
-      url: window.location.href
-    });
-
-    // Show success message
-    showDownloadMessage(`📄 Downloading: ${fileName}`, 'success');
+    try {
+      // Show starting message
+      showDownloadMessage(`🚀 Starting download: ${fileName}`, 'info');
+      
+      // Trigger the original download
+      console.log('📱 Clicking original download button...');
+      originalButton.click();
+      
+      // Send download message to background
+      chrome.runtime.sendMessage({
+        action: 'downloadPDF',
+        fileName: fileName,
+        downloadCount: downloadCount,
+        url: window.location.href
+      }).then((response) => {
+        console.log('📨 Background response:', response);
+        if (response && response.success) {
+          showDownloadMessage(`✅ Download started: ${fileName}`, 'success');
+        } else {
+          showDownloadMessage(`⚠️ Download may have failed: ${fileName}`, 'warning');
+        }
+       }).catch((error) => {
+         console.error('❌ Background message error:', error);
+         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+         showDownloadMessage(`❌ Extension error: ${errorMessage}`, 'warning');
+       });
+      
+    } catch (error) {
+      console.error('❌ Auto-download error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showDownloadMessage(`❌ Download failed: ${errorMessage}`, 'warning');
+    }
   });
 
   // Add hover effect
@@ -744,6 +846,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'scanPDFs') {
     scanForPDFs();
     sendResponse({ status: 'PDF scan completed!' });
+  } else if (request.action === 'scanPDFsWithResults') {
+    // Perform scan and return results with download counts
+    scanAllPDFsForPopup().then((results) => {
+      sendResponse(results);
+    });
+    return true; // Keep the message channel open for async response
+  } else if (request.action === 'getPDFData') {
+    const allPDFs = detectPDFFiles();
+    const pdfData = allPDFs.map((element, index) => ({
+      element: null, // Can't send DOM elements
+      fileName: element.querySelector('.file-name')?.textContent?.trim() || '',
+      downloadCount: 0, // Will be filled after scanning
+      index: index
+    }));
+    sendResponse({ pdfs: pdfData });
+  } else if (request.action === 'downloadPDF') {
+    const allPDFs = detectPDFFiles();
+    if (allPDFs[request.pdfIndex]) {
+      allPDFs[request.pdfIndex].click();
+      // Wait for modal to open, then trigger download
+      setTimeout(() => {
+        const downloadButton = document.querySelector('app-file-preview .download') as HTMLElement;
+        if (downloadButton) {
+          downloadButton.click();
+        }
+      }, 1000);
+    }
+    sendResponse({ status: 'PDF download triggered' });
   }
 });
 
