@@ -359,22 +359,30 @@ async function scanAllPDFs(): Promise<PDFInfo[]> {
     return eligiblePDFs;
   }
   
-  console.log(`🔍 [DEBUG] Starting scan of FIRST PDF only (out of ${allPDFs.length} total) for debugging...`);
+  console.log(`🔍 [DEBUG] Starting scan of FIRST 3 PDFs only (out of ${allPDFs.length} total) for debugging...`);
   
   // Show scanning message
-  showDownloadMessage(`🔍 [DEBUG] Scanning first PDF only for debugging...`, 'info');
+  showDownloadMessage(`🔍 [DEBUG] Scanning first 3 PDFs only for debugging...`, 'info');
   
-  // DEBUG: Scan only the first PDF
-  const i = 0;
-  console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/1 (first only) ---`);
-  
-  const pdfInfo = await scanSinglePDF(allPDFs[i], i);
-  if (pdfInfo && pdfInfo.downloadCount >= 5) {
-    eligiblePDFs.push(pdfInfo);
-    console.log(`✅ Added eligible PDF: ${pdfInfo.fileName} (${pdfInfo.downloadCount} downloads)`);
+  // DEBUG: Scan only the first 3 PDFs
+  const maxScans = Math.min(3, allPDFs.length);
+  for (let i = 0; i < maxScans; i++) {
+    console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 3 only) ---`);
+    
+    const pdfInfo = await scanSinglePDF(allPDFs[i], i);
+    if (pdfInfo && pdfInfo.downloadCount >= 5) {
+      eligiblePDFs.push(pdfInfo);
+      console.log(`✅ Added eligible PDF: ${pdfInfo.fileName} (${pdfInfo.downloadCount} downloads)`);
+    }
+    
+    // Add delay between scans
+    if (i < maxScans - 1) {
+      console.log(`⏸️ Waiting before next scan...`);
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
   }
   
-  console.log(`\n🎯 [DEBUG] Scan complete! Found ${eligiblePDFs.length} eligible PDFs (first PDF only)`);
+  console.log(`\n🎯 [DEBUG] Scan complete! Found ${eligiblePDFs.length} eligible PDFs (first 3 PDFs only)`);
   
   return eligiblePDFs;
 }
@@ -387,38 +395,45 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
     return { success: false, pdfs: [], eligible: 0 };
   }
   
-  console.log(`🔍 [DEBUG] Starting popup scan of FIRST PDF only (out of ${allPDFs.length} total) for debugging...`);
+  console.log(`🔍 [DEBUG] Starting popup scan of FIRST 3 PDFs only (out of ${allPDFs.length} total) for debugging...`);
   
   const scannedPDFs: any[] = [];
   let eligibleCount = 0;
   
-  // DEBUG: Scan only the first PDF
-  const i = 0;
-  console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/1 (first only) for popup ---`);
-  
-  const pdfInfo = await scanSinglePDF(allPDFs[i], i);
-  
-  if (pdfInfo) {
-    scannedPDFs.push({
-      fileName: pdfInfo.fileName,
-      downloadCount: pdfInfo.downloadCount,
-      index: i
-    });
+  // DEBUG: Scan only the first 3 PDFs
+  const maxScans = Math.min(3, allPDFs.length);
+  for (let i = 0; i < maxScans; i++) {
+    console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 3 only) for popup ---`);
     
-    if (pdfInfo.downloadCount >= 5) {
-      eligibleCount++;
+    const pdfInfo = await scanSinglePDF(allPDFs[i], i);
+    
+    if (pdfInfo) {
+      scannedPDFs.push({
+        fileName: pdfInfo.fileName,
+        downloadCount: pdfInfo.downloadCount,
+        index: i
+      });
+      
+      if (pdfInfo.downloadCount >= 5) {
+        eligibleCount++;
+      }
+    } else {
+      // Add PDF with 0 downloads if scan failed
+      const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
+      scannedPDFs.push({
+        fileName: fileName,
+        downloadCount: 0,
+        index: i
+      });
     }
-  } else {
-    // Add PDF with 0 downloads if scan failed
-    const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
-    scannedPDFs.push({
-      fileName: fileName,
-      downloadCount: 0,
-      index: i
-    });
+    
+    // Add delay between scans
+    if (i < maxScans - 1) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
   }
   
-  console.log(`🎯 [DEBUG] Popup scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first PDF only)`);
+  console.log(`🎯 [DEBUG] Popup scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first 3 PDFs only)`);
   
   return { 
     success: true, 
@@ -435,69 +450,76 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     return { success: false, pdfs: [], eligible: 0 };
   }
   
-  console.log(`🔍 [DEBUG] Starting progressive popup scan of FIRST PDF only (out of ${allPDFs.length} total) for debugging...`);
+  console.log(`🔍 [DEBUG] Starting progressive popup scan of FIRST 3 PDFs only (out of ${allPDFs.length} total) for debugging...`);
   
   const scannedPDFs: any[] = [];
   let eligibleCount = 0;
+  const maxScans = Math.min(3, allPDFs.length);
   
   // Send initial scan start message
   chrome.runtime.sendMessage({
     action: 'scanProgress',
     type: 'start',
-    total: 1, // DEBUG: Only 1 PDF
+    total: maxScans, // DEBUG: Only 3 PDFs
     scanned: 0,
     eligible: 0,
     pdfs: []
   });
   
-  // DEBUG: Scan only the first PDF
-  const i = 0;
-  console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/1 (first only) for progressive update ---`);
-  
-  const pdfInfo = await scanSinglePDF(allPDFs[i], i);
-  
-  if (pdfInfo) {
-    scannedPDFs.push({
-      fileName: pdfInfo.fileName,
-      downloadCount: pdfInfo.downloadCount,
-      index: i
+  // DEBUG: Scan only the first 3 PDFs
+  for (let i = 0; i < maxScans; i++) {
+    console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 3 only) for progressive update ---`);
+    
+    const pdfInfo = await scanSinglePDF(allPDFs[i], i);
+    
+    if (pdfInfo) {
+      scannedPDFs.push({
+        fileName: pdfInfo.fileName,
+        downloadCount: pdfInfo.downloadCount,
+        index: i
+      });
+      
+      if (pdfInfo.downloadCount >= 5) {
+        eligibleCount++;
+      }
+    } else {
+      // Add PDF with 0 downloads if scan failed
+      const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
+      scannedPDFs.push({
+        fileName: fileName,
+        downloadCount: 0,
+        index: i
+      });
+    }
+    
+    // Send progress update after each PDF
+    chrome.runtime.sendMessage({
+      action: 'scanProgress',
+      type: 'progress',
+      total: maxScans, // DEBUG: Only 3 PDFs
+      scanned: i + 1,
+      eligible: eligibleCount,
+      pdfs: [...scannedPDFs], // Send copy of current results
+      currentPdf: scannedPDFs[scannedPDFs.length - 1]
     });
     
-    if (pdfInfo.downloadCount >= 5) {
-      eligibleCount++;
+    // Add delay between scans
+    if (i < maxScans - 1) {
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
-  } else {
-    // Add PDF with 0 downloads if scan failed
-    const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
-    scannedPDFs.push({
-      fileName: fileName,
-      downloadCount: 0,
-      index: i
-    });
   }
-  
-  // Send progress update after the PDF
-  chrome.runtime.sendMessage({
-    action: 'scanProgress',
-    type: 'progress',
-    total: 1, // DEBUG: Only 1 PDF
-    scanned: 1,
-    eligible: eligibleCount,
-    pdfs: [...scannedPDFs], // Send copy of current results
-    currentPdf: scannedPDFs[scannedPDFs.length - 1]
-  });
   
   // Send final completion message
   chrome.runtime.sendMessage({
     action: 'scanProgress',
     type: 'complete',
-    total: 1, // DEBUG: Only 1 PDF
-    scanned: 1,
+    total: maxScans, // DEBUG: Only 3 PDFs
+    scanned: maxScans,
     eligible: eligibleCount,
     pdfs: scannedPDFs
   });
   
-  console.log(`🎯 [DEBUG] Progressive scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first PDF only)`);
+  console.log(`🎯 [DEBUG] Progressive scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first 3 PDFs only)`);
   
   return { 
     success: true, 
