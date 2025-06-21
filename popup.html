@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <style>
     body {
-      width: 300px;
-      height: 200px;
+      width: 320px;
+      height: 400px;
       padding: 20px;
       font-family: Arial, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -14,53 +14,88 @@
     }
     
     .container {
-      text-align: center;
       display: flex;
       flex-direction: column;
-      justify-content: center;
       height: 100%;
     }
     
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
     h1 {
-      margin: 0 0 20px 0;
-      font-size: 24px;
+      margin: 0 0 10px 0;
+      font-size: 20px;
     }
     
     p {
-      margin: 0 0 20px 0;
-      font-size: 16px;
+      margin: 0 0 15px 0;
+      font-size: 14px;
       opacity: 0.9;
+    }
+    
+    .content {
+      flex: 1;
+      overflow-y: auto;
     }
     
     button {
       background: rgba(255, 255, 255, 0.2);
       border: 1px solid rgba(255, 255, 255, 0.3);
       color: white;
-      padding: 10px 20px;
+      padding: 8px 16px;
       border-radius: 5px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 12px;
       transition: all 0.3s ease;
+      margin: 5px 0;
     }
     
     button:hover {
       background: rgba(255, 255, 255, 0.3);
-      transform: translateY(-2px);
+      transform: translateY(-1px);
     }
     
     #message {
       margin-top: 15px;
-      font-size: 14px;
+      font-size: 12px;
       opacity: 0.8;
+      min-height: 20px;
     }
+    
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .status-active { background: #4CAF50; }
+    .status-inactive { background: #f44336; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Hello World! 🌍</h1>
-    <p>Knowledge Planet Helper</p>
-    <button id="sayHello">Say Hello</button>
-    <div id="message"></div>
+    <div class="header">
+      <h1>📄 Knowledge Planet Helper</h1>
+      <p>Automatic PDF Downloader</p>
+      <div style="font-size: 11px; opacity: 0.8;">
+        <span class="status-indicator status-active"></span>
+        Extension Active
+      </div>
+    </div>
+    
+    <div class="content">
+      <div style="text-align: center; margin-bottom: 15px;">
+        <button id="scanPDFs" style="width: 100%;">
+          🔍 Scan Current Page
+        </button>
+      </div>
+      
+      <div id="message"></div>
+    </div>
   </div>
   
   <script src="dist/popup.js"></script>

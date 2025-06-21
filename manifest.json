@@ -6,7 +6,8 @@
   "permissions": [
     "downloads",
     "storage",
-    "activeTab"
+    "activeTab",
+    "contextMenus"
   ],
   "host_permissions": [
     "https://wx.zsxq.com/*"
