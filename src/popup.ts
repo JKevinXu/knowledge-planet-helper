@@ -64,8 +64,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-
-
   // Show message function
   function showMessage(text: string, type: 'success' | 'warning' | 'error' = 'success') {
     messageDiv.className = `message-${type}`;
@@ -91,19 +89,6 @@ document.addEventListener('DOMContentLoaded', function() {
       
       pdfCountElement.textContent = totalTracked.toString();
       eligibleCountElement.textContent = eligibleCount.toString();
-      
-      // Update message area with recent activity if there are stats
-      if (totalTracked > 0) {
-        updateRecentActivity(downloadStats, downloadedPDFs);
-      } else {
-        messageDiv.innerHTML = `
-          <div style="text-align: center; padding: 20px; opacity: 0.6;">
-            <div style="font-size: 14px; margin-bottom: 8px;">📄</div>
-            <div style="font-size: 12px;">No PDFs tracked yet</div>
-            <div style="font-size: 11px; margin-top: 4px;">Visit Knowledge Planet pages to start!</div>
-          </div>
-        `;
-      }
       
     } catch (error) {
       console.error('Error loading download stats:', error);
@@ -174,61 +159,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
-
-  // Update recent activity display
-  function updateRecentActivity(downloadStats: any, downloadedPDFs: any[]) {
-    const sortedPDFs = Object.entries(downloadStats)
-      .sort(([,a], [,b]) => (b as number) - (a as number))
-      .slice(0, 3);
-
-    if (sortedPDFs.length === 0) return;
-
-    const activityHtml = `
-      <div style="margin-bottom: 15px;">
-        <div style="font-size: 12px; font-weight: 600; color: #495057; margin-bottom: 8px;">
-          📊 Recent Activity
-        </div>
-        ${sortedPDFs.map(([pdfName, count]) => {
-          const isDownloaded = downloadedPDFs.some(pdf => pdf.fileName.toLowerCase() === pdfName);
-          const status = isDownloaded ? '✅' : (count as number) >= 5 ? '🟡' : '⏳';
-          const shortName = pdfName.length > 30 ? pdfName.substring(0, 30) + '...' : pdfName;
-          
-          return `
-            <div style="
-              display: flex; 
-              justify-content: space-between; 
-              align-items: center;
-              padding: 8px;
-              margin: 4px 0;
-              background: white;
-              border-radius: 4px;
-              font-size: 11px;
-              box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            ">
-              <span style="flex: 1; overflow: hidden;" title="${pdfName}">
-                ${status} ${shortName}
-              </span>
-              <span style="
-                background: ${(count as number) >= 5 ? '#28a745' : '#6c757d'};
-                color: white;
-                padding: 2px 6px;
-                border-radius: 10px;
-                font-size: 10px;
-                min-width: 30px;
-                text-align: center;
-              ">
-                ${count}
-              </span>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `;
-
-    messageDiv.innerHTML = activityHtml;
-  }
-
-
 
   // Add event listener for view downloads button (dynamically added)
   document.addEventListener('click', function(e) {
