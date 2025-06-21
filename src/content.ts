@@ -131,37 +131,26 @@ function getPDFInfoFromModal(): { downloadCount: number; fileName: string } {
 // Function to close modal
 function closeModal(): Promise<void> {
   return new Promise((resolve) => {
-    console.log('🔄 Attempting to close modal...');
+    console.log('🔄 Attempting to close modal by clicking file-preview-container...');
     
-    // Try multiple methods to close the modal
-    let modalClosed = false;
+    // Click on the file-preview-container
+    const container = document.querySelector('app-file-preview .file-preview-container');
+    if (container) {
+      console.log('📱 Clicking on file-preview-container');
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true
+      });
+      container.dispatchEvent(clickEvent);
+    } else {
+      console.warn('⚠️ Could not find file-preview-container element');
+    }
     
-    // Method 1: Try ESC key
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    
-    // Method 2: Click outside modal
+    // Wait and resolve
     setTimeout(() => {
-      if (!modalClosed) {
-        const modal = document.querySelector('app-file-preview');
-        if (modal) {
-          // Try to click outside the modal
-          const event = new MouseEvent('click', { bubbles: true, cancelable: true });
-          document.body.dispatchEvent(event);
-        }
-      }
-    }, 100);
-    
-    // Method 3: Remove modal element if still present
-    setTimeout(() => {
-      const modal = document.querySelector('app-file-preview');
-      if (modal) {
-        console.log('🗑️ Force removing modal element');
-        modal.remove();
-      }
-      modalClosed = true;
-      console.log('✅ Modal closed');
+      console.log('✅ Modal close attempt completed');
       resolve();
-    }, 400);
+    }, 500);
   });
 }
 
@@ -370,29 +359,22 @@ async function scanAllPDFs(): Promise<PDFInfo[]> {
     return eligiblePDFs;
   }
   
-  console.log(`🔍 Starting scan of ${allPDFs.length} PDFs for download counts...`);
+  console.log(`🔍 [DEBUG] Starting scan of FIRST PDF only (out of ${allPDFs.length} total) for debugging...`);
   
   // Show scanning message
-  showDownloadMessage(`🔍 Scanning ${allPDFs.length} PDFs for download counts...`, 'info');
+  showDownloadMessage(`🔍 [DEBUG] Scanning first PDF only for debugging...`, 'info');
   
-  // Scan each PDF one by one with proper spacing
-  for (let i = 0; i < allPDFs.length; i++) {
-    console.log(`\n--- Scanning PDF ${i + 1}/${allPDFs.length} ---`);
-    
-    const pdfInfo = await scanSinglePDF(allPDFs[i], i);
-    if (pdfInfo && pdfInfo.downloadCount >= 5) {
-      eligiblePDFs.push(pdfInfo);
-      console.log(`✅ Added eligible PDF: ${pdfInfo.fileName} (${pdfInfo.downloadCount} downloads)`);
-    }
-    
-    // Add delay between each PDF scan to ensure clean state
-    if (i < allPDFs.length - 1) {
-      console.log(`⏸️ Waiting before next scan...`);
-      await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay since modals are hidden
-    }
+  // DEBUG: Scan only the first PDF
+  const i = 0;
+  console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/1 (first only) ---`);
+  
+  const pdfInfo = await scanSinglePDF(allPDFs[i], i);
+  if (pdfInfo && pdfInfo.downloadCount >= 5) {
+    eligiblePDFs.push(pdfInfo);
+    console.log(`✅ Added eligible PDF: ${pdfInfo.fileName} (${pdfInfo.downloadCount} downloads)`);
   }
   
-  console.log(`\n🎯 Scan complete! Found ${eligiblePDFs.length} eligible PDFs (5+ downloads)`);
+  console.log(`\n🎯 [DEBUG] Scan complete! Found ${eligiblePDFs.length} eligible PDFs (first PDF only)`);
   
   return eligiblePDFs;
 }
@@ -405,44 +387,38 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
     return { success: false, pdfs: [], eligible: 0 };
   }
   
-  console.log(`🔍 Starting popup scan of ${allPDFs.length} PDFs...`);
+  console.log(`🔍 [DEBUG] Starting popup scan of FIRST PDF only (out of ${allPDFs.length} total) for debugging...`);
   
   const scannedPDFs: any[] = [];
   let eligibleCount = 0;
   
-  // Scan each PDF one by one
-  for (let i = 0; i < allPDFs.length; i++) {
-    console.log(`\n--- Scanning PDF ${i + 1}/${allPDFs.length} for popup ---`);
+  // DEBUG: Scan only the first PDF
+  const i = 0;
+  console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/1 (first only) for popup ---`);
+  
+  const pdfInfo = await scanSinglePDF(allPDFs[i], i);
+  
+  if (pdfInfo) {
+    scannedPDFs.push({
+      fileName: pdfInfo.fileName,
+      downloadCount: pdfInfo.downloadCount,
+      index: i
+    });
     
-    const pdfInfo = await scanSinglePDF(allPDFs[i], i);
-    
-    if (pdfInfo) {
-      scannedPDFs.push({
-        fileName: pdfInfo.fileName,
-        downloadCount: pdfInfo.downloadCount,
-        index: i
-      });
-      
-      if (pdfInfo.downloadCount >= 5) {
-        eligibleCount++;
-      }
-    } else {
-      // Add PDF with 0 downloads if scan failed
-      const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
-      scannedPDFs.push({
-        fileName: fileName,
-        downloadCount: 0,
-        index: i
-      });
+    if (pdfInfo.downloadCount >= 5) {
+      eligibleCount++;
     }
-    
-    // Add delay between scans
-    if (i < allPDFs.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
+  } else {
+    // Add PDF with 0 downloads if scan failed
+    const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
+    scannedPDFs.push({
+      fileName: fileName,
+      downloadCount: 0,
+      index: i
+    });
   }
   
-  console.log(`🎯 Popup scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible`);
+  console.log(`🎯 [DEBUG] Popup scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first PDF only)`);
   
   return { 
     success: true, 
@@ -459,7 +435,7 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     return { success: false, pdfs: [], eligible: 0 };
   }
   
-  console.log(`🔍 Starting progressive popup scan of ${allPDFs.length} PDFs...`);
+  console.log(`🔍 [DEBUG] Starting progressive popup scan of FIRST PDF only (out of ${allPDFs.length} total) for debugging...`);
   
   const scannedPDFs: any[] = [];
   let eligibleCount = 0;
@@ -468,66 +444,60 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
   chrome.runtime.sendMessage({
     action: 'scanProgress',
     type: 'start',
-    total: allPDFs.length,
+    total: 1, // DEBUG: Only 1 PDF
     scanned: 0,
     eligible: 0,
     pdfs: []
   });
   
-  // Scan each PDF one by one
-  for (let i = 0; i < allPDFs.length; i++) {
-    console.log(`\n--- Scanning PDF ${i + 1}/${allPDFs.length} for progressive update ---`);
-    
-    const pdfInfo = await scanSinglePDF(allPDFs[i], i);
-    
-    if (pdfInfo) {
-      scannedPDFs.push({
-        fileName: pdfInfo.fileName,
-        downloadCount: pdfInfo.downloadCount,
-        index: i
-      });
-      
-      if (pdfInfo.downloadCount >= 5) {
-        eligibleCount++;
-      }
-    } else {
-      // Add PDF with 0 downloads if scan failed
-      const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
-      scannedPDFs.push({
-        fileName: fileName,
-        downloadCount: 0,
-        index: i
-      });
-    }
-    
-    // Send progress update after each PDF
-    chrome.runtime.sendMessage({
-      action: 'scanProgress',
-      type: 'progress',
-      total: allPDFs.length,
-      scanned: i + 1,
-      eligible: eligibleCount,
-      pdfs: [...scannedPDFs], // Send copy of current results
-      currentPdf: scannedPDFs[scannedPDFs.length - 1]
+  // DEBUG: Scan only the first PDF
+  const i = 0;
+  console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/1 (first only) for progressive update ---`);
+  
+  const pdfInfo = await scanSinglePDF(allPDFs[i], i);
+  
+  if (pdfInfo) {
+    scannedPDFs.push({
+      fileName: pdfInfo.fileName,
+      downloadCount: pdfInfo.downloadCount,
+      index: i
     });
     
-    // Add delay between scans
-    if (i < allPDFs.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 200));
+    if (pdfInfo.downloadCount >= 5) {
+      eligibleCount++;
     }
+  } else {
+    // Add PDF with 0 downloads if scan failed
+    const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
+    scannedPDFs.push({
+      fileName: fileName,
+      downloadCount: 0,
+      index: i
+    });
   }
+  
+  // Send progress update after the PDF
+  chrome.runtime.sendMessage({
+    action: 'scanProgress',
+    type: 'progress',
+    total: 1, // DEBUG: Only 1 PDF
+    scanned: 1,
+    eligible: eligibleCount,
+    pdfs: [...scannedPDFs], // Send copy of current results
+    currentPdf: scannedPDFs[scannedPDFs.length - 1]
+  });
   
   // Send final completion message
   chrome.runtime.sendMessage({
     action: 'scanProgress',
     type: 'complete',
-    total: allPDFs.length,
-    scanned: allPDFs.length,
+    total: 1, // DEBUG: Only 1 PDF
+    scanned: 1,
     eligible: eligibleCount,
     pdfs: scannedPDFs
   });
   
-  console.log(`🎯 Progressive scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible`);
+  console.log(`🎯 [DEBUG] Progressive scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first PDF only)`);
   
   return { 
     success: true, 
