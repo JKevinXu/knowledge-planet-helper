@@ -521,6 +521,91 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
   };
 }
 
+// Function to scan all PDFs and return results for popup with incremental updates
+async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[], eligible: number}> {
+  const allPDFs = detectPDFFiles();
+  
+  if (allPDFs.length === 0) {
+    return { success: false, pdfs: [], eligible: 0 };
+  }
+  
+  console.log(`🔍 Starting progressive popup scan of ${allPDFs.length} PDFs...`);
+  
+  const scannedPDFs: any[] = [];
+  let eligibleCount = 0;
+  
+  // Send initial scan start message
+  chrome.runtime.sendMessage({
+    action: 'scanProgress',
+    type: 'start',
+    total: allPDFs.length,
+    scanned: 0,
+    eligible: 0,
+    pdfs: []
+  });
+  
+  // Scan each PDF one by one
+  for (let i = 0; i < allPDFs.length; i++) {
+    console.log(`\n--- Scanning PDF ${i + 1}/${allPDFs.length} for progressive update ---`);
+    
+    const pdfInfo = await scanSinglePDF(allPDFs[i], i);
+    
+    if (pdfInfo) {
+      scannedPDFs.push({
+        fileName: pdfInfo.fileName,
+        downloadCount: pdfInfo.downloadCount,
+        index: i
+      });
+      
+      if (pdfInfo.downloadCount >= 5) {
+        eligibleCount++;
+      }
+    } else {
+      // Add PDF with 0 downloads if scan failed
+      const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
+      scannedPDFs.push({
+        fileName: fileName,
+        downloadCount: 0,
+        index: i
+      });
+    }
+    
+    // Send progress update after each PDF
+    chrome.runtime.sendMessage({
+      action: 'scanProgress',
+      type: 'progress',
+      total: allPDFs.length,
+      scanned: i + 1,
+      eligible: eligibleCount,
+      pdfs: [...scannedPDFs], // Send copy of current results
+      currentPdf: scannedPDFs[scannedPDFs.length - 1]
+    });
+    
+    // Add delay between scans
+    if (i < allPDFs.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
+  
+  // Send final completion message
+  chrome.runtime.sendMessage({
+    action: 'scanProgress',
+    type: 'complete',
+    total: allPDFs.length,
+    scanned: allPDFs.length,
+    eligible: eligibleCount,
+    pdfs: scannedPDFs
+  });
+  
+  console.log(`🎯 Progressive scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible`);
+  
+  return { 
+    success: true, 
+    pdfs: scannedPDFs, 
+    eligible: eligibleCount 
+  };
+}
+
 // Function to handle PDF modal interaction
 function handlePDFModal() {
   const { fileName, downloadCount } = getPDFInfoFromModal();
@@ -847,6 +932,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'scanPDFsWithResults') {
     // Perform scan and return results with download counts
     scanAllPDFsForPopup().then((results) => {
+      sendResponse(results);
+    });
+    return true; // Keep the message channel open for async response
+  } else if (request.action === 'scanPDFsWithProgress') {
+    // Perform progressive scan with real-time updates
+    scanAllPDFsWithProgress().then((results) => {
       sendResponse(results);
     });
     return true; // Keep the message channel open for async response

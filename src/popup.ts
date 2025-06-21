@@ -11,41 +11,82 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Store scanned PDFs
   let scannedPDFs: any[] = [];
+  let isScanning = false;
+
+  // Connect to background script for scan progress updates
+  const port = chrome.runtime.connect({ name: 'popup' });
+  port.onMessage.addListener((message) => {
+    if (message.action === 'scanProgress') {
+      handleScanProgress(message);
+    }
+  });
 
   // Load and display download statistics
   loadDownloadStats();
 
+  // Handle scan progress updates
+  function handleScanProgress(progress: any) {
+    const { type, total, scanned, eligible, pdfs, currentPdf } = progress;
+    
+    if (type === 'start') {
+      isScanning = true;
+      scanPDFsButton.disabled = true;
+      scanPDFsButton.textContent = `🔄 Starting scan...`;
+      scannedPDFs = [];
+      updatePDFList();
+      showMessage(`🔍 Starting scan of ${total} PDFs...`, 'success');
+    } else if (type === 'progress') {
+      scanPDFsButton.textContent = `🔄 Scanning ${scanned}/${total}...`;
+      scannedPDFs = [...pdfs]; // Update with current results
+      updatePDFList();
+      
+      // Update stats in real-time
+      pdfCountElement.textContent = scanned.toString();
+      eligibleCountElement.textContent = eligible.toString();
+      
+      if (currentPdf) {
+        const status = currentPdf.downloadCount >= 5 ? '✅ Eligible' : '⏳ Not eligible';
+        showMessage(`📄 ${currentPdf.fileName} - ${currentPdf.downloadCount} downloads (${status})`, 'success');
+      }
+    } else if (type === 'complete') {
+      isScanning = false;
+      scanPDFsButton.disabled = false;
+      scanPDFsButton.textContent = '🔍 Scan Current Page';
+      scannedPDFs = [...pdfs];
+      updatePDFList();
+      
+      // Update final stats
+      pdfCountElement.textContent = total.toString();
+      eligibleCountElement.textContent = eligible.toString();
+      
+      showMessage(`✅ Scan complete! Found ${total} PDFs, ${eligible} eligible for download`, 'success');
+      loadDownloadStats(); // Refresh stats
+    }
+  }
+
   // Scan PDFs button functionality
   scanPDFsButton.addEventListener('click', function() {
-    scanPDFsButton.disabled = true;
-    scanPDFsButton.textContent = '🔄 Scanning...';
+    if (isScanning) {
+      showMessage('⚠️ Scan already in progress...', 'warning');
+      return;
+    }
     
-    // Send message to active tab to scan for PDFs
+    // Send message to active tab to scan for PDFs with progress updates
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const currentTab = tabs[0];
       if (currentTab?.id && currentTab.url?.includes('wx.zsxq.com')) {
         const tabId = currentTab.id as number;
-        // Trigger the scan and get results
-        chrome.tabs.sendMessage(tabId, { action: 'scanPDFsWithResults' }, (response) => {
-          scanPDFsButton.disabled = false;
-          scanPDFsButton.textContent = '🔍 Scan Current Page';
-          
-          if (response && response.success) {
-            if (response.pdfs && response.pdfs.length > 0) {
-              scannedPDFs = response.pdfs;
-              updatePDFList();
-              showMessage(`✅ Found ${response.pdfs.length} PDFs, ${response.eligible} eligible for download`, 'success');
-            } else {
-              showMessage('📄 No PDFs found on this page', 'warning');
-            }
-            loadDownloadStats(); // Refresh stats
-          } else {
+        // Trigger the progressive scan
+        chrome.tabs.sendMessage(tabId, { action: 'scanPDFsWithProgress' }, (response) => {
+          // Final response handling (scan completion is handled via progress messages)
+          if (!response || !response.success) {
+            isScanning = false;
+            scanPDFsButton.disabled = false;
+            scanPDFsButton.textContent = '🔍 Scan Current Page';
             showMessage('⚠️ Make sure you\'re on a Knowledge Planet page', 'warning');
           }
         });
       } else {
-        scanPDFsButton.disabled = false;
-        scanPDFsButton.textContent = '🔍 Scan Current Page';
         showMessage('❌ Please visit a Knowledge Planet page first', 'error');
       }
     });

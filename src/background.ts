@@ -17,6 +17,22 @@ chrome.runtime.onInstalled.addListener((details) => {
   });
 });
 
+// Store popup port for scan progress updates
+let popupPort: chrome.runtime.Port | null = null;
+
+// Listen for popup connection
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'popup') {
+    popupPort = port;
+    console.log('📱 Popup connected for scan progress updates');
+    
+    port.onDisconnect.addListener(() => {
+      popupPort = null;
+      console.log('📱 Popup disconnected');
+    });
+  }
+});
+
 // Listen for messages from content script or popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Message received in background:', request);
@@ -28,6 +44,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ message: 'Background script acknowledged' });
   } else if (request.action === 'trackPDFView') {
     handlePDFView(request, sender, sendResponse);
+  } else if (request.action === 'scanProgress') {
+    // Forward scan progress to popup if connected
+    if (popupPort) {
+      popupPort.postMessage(request);
+      console.log(`📊 Forwarded scan progress to popup: ${request.type} - ${request.scanned}/${request.total}`);
+    }
+    sendResponse({ message: 'Progress forwarded' });
   }
   
   return true; // Keep the message channel open for async responses
