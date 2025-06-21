@@ -12,7 +12,8 @@ chrome.runtime.onInstalled.addListener((details) => {
     installed: true,
     installDate: new Date().toISOString(),
     downloadedPDFs: [],
-    downloadStats: {}
+    downloadStats: {},
+    pdfViews: {}
   });
 });
 
@@ -25,16 +26,64 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'contentScriptLoaded') {
     console.log('📄 Content script loaded on:', request.url);
     sendResponse({ message: 'Background script acknowledged' });
+  } else if (request.action === 'trackPDFView') {
+    handlePDFView(request, sender, sendResponse);
   }
   
   return true; // Keep the message channel open for async responses
 });
 
+// Function to handle PDF view tracking
+async function handlePDFView(request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) {
+  const { fileName, downloadCount, url } = request;
+  
+  console.log(`👁️ PDF viewed: ${fileName} (${downloadCount} total downloads)`);
+  
+  try {
+    // Get current view stats
+    const result = await chrome.storage.local.get(['pdfViews', 'downloadStats']);
+    const pdfViews = result.pdfViews || {};
+    const downloadStats = result.downloadStats || {};
+    
+    // Track this view
+    const pdfKey = fileName.toLowerCase();
+    pdfViews[pdfKey] = {
+      fileName,
+      lastViewed: new Date().toISOString(),
+      actualDownloadCount: downloadCount,
+      url
+    };
+    
+    // Update our internal download stats with the actual count
+    downloadStats[pdfKey] = downloadCount;
+    
+    // Save updated data
+    await chrome.storage.local.set({
+      pdfViews,
+      downloadStats
+    });
+    
+    sendResponse({ 
+      success: true, 
+      message: 'PDF view tracked',
+      eligible: downloadCount >= 5
+    });
+    
+  } catch (error) {
+    console.error('Error tracking PDF view:', error);
+    sendResponse({ 
+      success: false, 
+      message: 'Error tracking view',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
+
 // Function to handle PDF download requests
 async function handlePDFDownload(request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) {
-  const { fileName, url } = request;
+  const { fileName, downloadCount, url } = request;
   
-  console.log(`📄 Processing PDF download request: ${fileName}`);
+  console.log(`📄 Processing PDF download request: ${fileName} (${downloadCount} downloads)`);
   
   try {
     // Get current download stats
@@ -42,26 +91,26 @@ async function handlePDFDownload(request: any, sender: chrome.runtime.MessageSen
     const downloadStats = result.downloadStats || {};
     const downloadedPDFs = result.downloadedPDFs || [];
     
-    // Update download count for this PDF
+    // Use the actual download count from the modal
     const pdfKey = fileName.toLowerCase();
-    downloadStats[pdfKey] = (downloadStats[pdfKey] || 0) + 1;
+    const actualCount = downloadCount || downloadStats[pdfKey] || 0;
     
-    console.log(`📊 Download count for "${fileName}": ${downloadStats[pdfKey]}`);
+    console.log(`📊 Actual download count for "${fileName}": ${actualCount}`);
     
     // Check if this PDF meets download criteria (5+ downloads)
-    if (downloadStats[pdfKey] >= 5) {
-      console.log(`✅ PDF "${fileName}" has ${downloadStats[pdfKey]} downloads, proceeding with download`);
+    if (actualCount >= 5) {
+      console.log(`✅ PDF "${fileName}" has ${actualCount} downloads, proceeding with download`);
       
-      // TODO: Implement actual PDF download
-      // For now, we'll simulate the download
+      // Simulate the download process
       await simulateDownload(fileName, url);
       
       // Add to downloaded PDFs list if not already there
       const pdfRecord = {
         fileName,
         url,
-        downloadCount: downloadStats[pdfKey],
-        downloadedAt: new Date().toISOString()
+        downloadCount: actualCount,
+        downloadedAt: new Date().toISOString(),
+        method: 'auto-download'
       };
       
       const existingIndex = downloadedPDFs.findIndex((pdf: any) => pdf.fileName === fileName);
@@ -71,6 +120,9 @@ async function handlePDFDownload(request: any, sender: chrome.runtime.MessageSen
         downloadedPDFs.push(pdfRecord);
       }
       
+      // Update stats
+      downloadStats[pdfKey] = actualCount;
+      
       // Save updated data
       await chrome.storage.local.set({
         downloadStats,
@@ -79,19 +131,20 @@ async function handlePDFDownload(request: any, sender: chrome.runtime.MessageSen
       
       sendResponse({ 
         success: true, 
-        message: `PDF downloaded successfully! (${downloadStats[pdfKey]} downloads)`,
-        downloadCount: downloadStats[pdfKey]
+        message: `PDF download completed! (${actualCount} downloads)`,
+        downloadCount: actualCount
       });
     } else {
-      console.log(`⏳ PDF "${fileName}" has only ${downloadStats[pdfKey]} downloads, need 5+ to auto-download`);
+      console.log(`⏳ PDF "${fileName}" has only ${actualCount} downloads, need 5+ to auto-download`);
       
-      // Save updated stats
+      // Update stats with actual count
+      downloadStats[pdfKey] = actualCount;
       await chrome.storage.local.set({ downloadStats });
       
       sendResponse({ 
         success: false, 
-        message: `PDF needs ${5 - downloadStats[pdfKey]} more downloads to auto-download`,
-        downloadCount: downloadStats[pdfKey],
+        message: `PDF needs ${5 - actualCount} more downloads to auto-download`,
+        downloadCount: actualCount,
         required: 5
       });
     }
@@ -125,17 +178,11 @@ async function simulateDownload(fileName: string, url: string): Promise<void> {
   });
 }
 
-// Listen for tab updates to show PDF detection notifications
+// Listen for tab updates (removed auto-scan, now only manual via popup)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url?.includes('wx.zsxq.com')) {
-    console.log('📄 Knowledge Planet page loaded, ready to detect PDFs:', tab.url);
-    
-    // Send message to content script to scan for PDFs
-    setTimeout(() => {
-      chrome.tabs.sendMessage(tabId, { action: 'scanPDFs' }).catch(() => {
-        // Ignore errors if content script is not ready
-      });
-    }, 2000);
+    console.log('📄 Knowledge Planet page loaded, extension ready. Use popup to scan for PDFs:', tab.url);
+    // Auto-scan removed - user must click "Scan Current Page" button
   }
 });
 
