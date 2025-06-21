@@ -96,80 +96,27 @@ function getPDFInfoFromModal(): { downloadCount: number; fileName: string } {
   const fileNameElement = document.querySelector('app-file-preview .file-name');
   const fileName = fileNameElement?.textContent?.trim() || '';
   
-  // Get download count - try multiple selectors
-  const downloadRecords = document.querySelectorAll('app-file-preview .download-record');
+  // Get download count from modal text
   let downloadCount = 0;
+  const modal = document.querySelector('app-file-preview');
   
-  console.log(`📋 Found ${downloadRecords.length} download record elements`);
-  
-  for (let i = 0; i < downloadRecords.length; i++) {
-    const recordElement = downloadRecords[i];
-    const recordText = recordElement.textContent?.trim() || '';
-    console.log(`📋 Download record ${i + 1}: "${recordText}"`);
+  if (modal) {
+    const allText = modal.textContent || '';
     
-    // Try all possible patterns for Chinese text
+    // Simple pattern matching - use only the patterns that work
     const patterns = [
       /（下载次数：(\d+)）/,
       /\(下载次数：(\d+)\)/,
-      /（下载次数:(\d+)）/,
-      /\(下载次数:(\d+)\)/,
-      /下载次数：(\d+)/,
-      /下载次数:(\d+)/,
-      /(\d+)次/,
-      /(\d+)/
+      /下载次数：(\d+)/
     ];
     
     for (const pattern of patterns) {
-      const match = recordText.match(pattern);
+      const match = allText.match(pattern);
       if (match && match[1]) {
-        const count = parseInt(match[1], 10);
-        console.log(`📊 Pattern "${pattern.source}" matched: ${count} downloads`);
-        if (count > downloadCount) {
-          downloadCount = count;
-        }
+        downloadCount = parseInt(match[1], 10);
+        console.log(`📊 Pattern matched: ${downloadCount} downloads`);
         break;
       }
-    }
-  }
-  
-  // Also check for spans within download records
-  const spans = document.querySelectorAll('app-file-preview .download-record span');
-  console.log(`📋 Found ${spans.length} span elements within download records`);
-  
-  for (let i = 0; i < spans.length; i++) {
-    const span = spans[i];
-    const spanText = span.textContent?.trim() || '';
-    console.log(`📋 Span ${i + 1}: "${spanText}"`);
-    
-    const patterns = [
-      /（下载次数：(\d+)）/,
-      /\(下载次数：(\d+)\)/,
-      /（下载次数:(\d+)）/,
-      /\(下载次数:(\d+)\)/,
-      /下载次数：(\d+)/,
-      /下载次数:(\d+)/,
-      /(\d+)次/,
-      /(\d+)/
-    ];
-    
-    for (const pattern of patterns) {
-      const match = spanText.match(pattern);
-      if (match && match[1]) {
-        const count = parseInt(match[1], 10);
-        console.log(`📊 Span pattern "${pattern.source}" matched: ${count} downloads`);
-        if (count > downloadCount) {
-          downloadCount = count;
-        }
-        break;
-      }
-    }
-  }
-  
-  // Debug: Show the entire modal HTML if we can't find download count
-  if (downloadCount === 0) {
-    const modal = document.querySelector('app-file-preview');
-    if (modal) {
-      console.log('🔍 Modal HTML (first 1000 chars):', modal.innerHTML.substring(0, 1000));
     }
   }
   
@@ -360,14 +307,10 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
         const modalLoaded = await waitForModalContent();
         
         if (modalLoaded) {
-          // Hide modal during processing to make it less intrusive
-          const modal = document.querySelector('app-file-preview') as HTMLElement;
-          let originalDisplay = '';
-          if (modal) {
-            originalDisplay = modal.style.display;
-            modal.style.display = 'none';
-            console.log(`👻 [${pdfIndex + 1}] Modal hidden during processing`);
-          }
+          // Wait additional time to ensure content is stable before extracting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          console.log(`📋 [${pdfIndex + 1}] Modal content ready, extracting data...`);
           
           // Double-check we have the right modal content
           const modalFileName = document.querySelector('app-file-preview .file-name')?.textContent?.trim();
@@ -378,36 +321,23 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
             
             console.log(`📊 [${pdfIndex + 1}] PDF: ${fileName} - ${downloadCount} downloads`);
             
-            // Restore modal visibility before closing (in case user wants to see it)
-            if (modal) {
-              modal.style.display = originalDisplay;
-            }
-            
             // Close modal and wait for it to disappear
             await closeModal();
             await waitForModalToClose();
             
             // Wait extra time between scans
             setTimeout(() => {
-              if (downloadCount >= 5) {
-                resolve({
-                  element: pdfElement,
-                  fileName,
-                  downloadCount,
-                  index: pdfIndex
-                });
-              } else {
-                console.log(`⏳ [${pdfIndex + 1}] PDF "${fileName}" has only ${downloadCount} downloads, skipping`);
-                resolve(null);
-              }
+              // Always return the PDF info with actual download count
+              resolve({
+                element: pdfElement,
+                fileName,
+                downloadCount,
+                index: pdfIndex
+              });
+              console.log(`📊 [${pdfIndex + 1}] PDF "${fileName}" has ${downloadCount} downloads ${downloadCount >= 5 ? '(eligible)' : '(not eligible)'}`);
             }, 100); // Reduced wait time
           } else {
             console.warn(`⚠️ [${pdfIndex + 1}] Modal filename mismatch! Expected: ${fileName}, Got: ${modalFileName}`);
-            
-            // Restore modal visibility before closing
-            if (modal) {
-              modal.style.display = originalDisplay;
-            }
             
             await closeModal();
             await waitForModalToClose();
@@ -450,7 +380,7 @@ async function scanAllPDFs(): Promise<PDFInfo[]> {
     console.log(`\n--- Scanning PDF ${i + 1}/${allPDFs.length} ---`);
     
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
-    if (pdfInfo) {
+    if (pdfInfo && pdfInfo.downloadCount >= 5) {
       eligiblePDFs.push(pdfInfo);
       console.log(`✅ Added eligible PDF: ${pdfInfo.fileName} (${pdfInfo.downloadCount} downloads)`);
     }
