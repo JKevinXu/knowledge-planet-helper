@@ -20,6 +20,9 @@ chrome.runtime.onInstalled.addListener((details) => {
 // Store popup port for scan progress updates
 let popupPort: chrome.runtime.Port | null = null;
 
+// Store pending downloads with their metadata
+let pendingDownloads: Map<string, { fileName: string; uploadDate: string; downloadCount: number }> = new Map();
+
 // Listen for popup connection
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name === 'popup') {
@@ -39,6 +42,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   if (request.action === 'downloadPDF') {
     handlePDFDownload(request, sender, sendResponse);
+  } else if (request.action === 'registerDownload') {
+    handleRegisterDownload(request, sender, sendResponse);
   } else if (request.action === 'contentScriptLoaded') {
     console.log('📄 Content script loaded on:', request.url);
     sendResponse({ message: 'Background script acknowledged' });
@@ -55,6 +60,70 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   return true; // Keep the message channel open for async responses
 });
+
+// Listen for download filename determination to rename files with upload date
+chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
+  console.log('📥 Download filename determining:', downloadItem);
+  
+  // Check if this is from a Knowledge Planet domain
+  if (downloadItem.url && downloadItem.url.includes('zsxq.com')) {
+    const originalFilename = downloadItem.filename || '';
+    console.log(`📄 Knowledge Planet download detected: ${originalFilename}`);
+    
+    // Try to find matching pending download
+    for (const [key, metadata] of pendingDownloads.entries()) {
+      if (originalFilename.includes(key) || key.includes(originalFilename.replace(/\.[^/.]+$/, ""))) {
+        console.log(`🎯 Found matching metadata for download: ${metadata.fileName}`);
+        
+        // Create new filename with upload date at the start (date only, no time)
+        const fileExtension = originalFilename.split('.').pop() || 'pdf';
+        const baseFileName = metadata.fileName.replace(/\.[^/.]+$/, ''); // Remove extension
+        const uploadDate = metadata.uploadDate.split(' ')[0]; // Extract only the date part (YYYY-MM-DD)
+        const newFileName = `${uploadDate}_${baseFileName}.${fileExtension}`;
+        
+        console.log(`📝 Renaming download: ${originalFilename} → ${newFileName}`);
+        
+        // Suggest the new filename
+        suggest({ filename: newFileName });
+        
+        // Remove from pending downloads
+        pendingDownloads.delete(key);
+        return true; // Indicate we handled the filename
+      }
+    }
+  }
+  
+  // If no metadata found, use original filename
+  return false;
+});
+
+// Clean up old pending downloads periodically
+setInterval(() => {
+  if (pendingDownloads.size > 0) {
+    console.log(`🧹 Cleaning up ${pendingDownloads.size} pending downloads`);
+    pendingDownloads.clear();
+  }
+  }, 60000); // Clean up every minute
+
+// Function to register download metadata for filename modification
+function handleRegisterDownload(request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) {
+  const { fileName, uploadDate, downloadCount } = request;
+  
+  console.log(`📝 Registering download metadata: ${fileName} (${uploadDate})`);
+  
+  // Create a key that can match the actual download filename
+  const fileKey = fileName.replace(/\.[^/.]+$/, ''); // Remove extension for matching
+  
+  // Store metadata for the upcoming download
+  pendingDownloads.set(fileKey, {
+    fileName,
+    uploadDate,
+    downloadCount
+  });
+  
+  console.log(`✅ Download metadata registered for: ${fileKey}`);
+  sendResponse({ success: true, message: 'Download metadata registered' });
+}
 
 // Function to handle PDF view tracking
 async function handlePDFView(request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) {

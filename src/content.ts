@@ -602,7 +602,16 @@ function addAutoDownloadButton(originalButton: HTMLElement, fileName: string, do
       // Show starting message
       showDownloadMessage(`🚀 Starting download: ${fileName}`, 'info');
       
-      // Trigger the original download
+      // First, register download metadata with background script
+      const { uploadDate } = getPDFInfoFromModal();
+      chrome.runtime.sendMessage({
+        action: 'registerDownload',
+        fileName: fileName,
+        uploadDate: uploadDate,
+        downloadCount: downloadCount
+      });
+      
+      // Then trigger the original download
       console.log('📱 Clicking original download button...');
       originalButton.click();
       
@@ -611,6 +620,7 @@ function addAutoDownloadButton(originalButton: HTMLElement, fileName: string, do
         action: 'downloadPDF',
         fileName: fileName,
         downloadCount: downloadCount,
+        uploadDate: '', // Will be updated when we have the actual date
         url: window.location.href
       }).then((response) => {
         console.log('📨 Background response:', response);
@@ -886,12 +896,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'downloadPDF') {
     const allPDFs = detectPDFFiles();
     if (allPDFs[request.pdfIndex]) {
+      // First click to open modal
       allPDFs[request.pdfIndex].click();
-      // Wait for modal to open, then trigger download
-      setTimeout(() => {
-        const downloadButton = document.querySelector('app-file-preview .download') as HTMLElement;
-        if (downloadButton) {
-          downloadButton.click();
+      
+      // Wait for modal to open, then register metadata and trigger download
+      setTimeout(async () => {
+        const modalLoaded = await waitForModalContent();
+        if (modalLoaded) {
+          // Get PDF info from the modal
+          const { fileName, uploadDate, downloadCount } = getPDFInfoFromModal();
+          
+          // Register download metadata
+          chrome.runtime.sendMessage({
+            action: 'registerDownload',
+            fileName: fileName,
+            uploadDate: uploadDate,
+            downloadCount: downloadCount
+          });
+          
+          // Then trigger the download
+          const downloadButton = document.querySelector('app-file-preview .download') as HTMLElement;
+          if (downloadButton) {
+            downloadButton.click();
+          }
         }
       }, 1000);
     }
