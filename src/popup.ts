@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Store scanned PDFs
   let scannedPDFs: any[] = [];
   let isScanning = false;
+  let selectedPDFs: Set<number> = new Set(); // Track selected PDF indices
 
   // Connect to background script for scan progress updates
   const port = chrome.runtime.connect({ name: 'popup' });
@@ -154,18 +155,26 @@ document.addEventListener('DOMContentLoaded', function() {
       const isEligible = pdf.downloadCount >= 5;
       const shortName = pdf.fileName.length > 45 ? pdf.fileName.substring(0, 45) + '...' : pdf.fileName;
       const uploadDate = pdf.uploadDate || '';
+      const isSelected = selectedPDFs.has(index);
       
       return `
         <div class="pdf-item" data-index="${index}">
-          <div class="pdf-header">
-            <div class="pdf-name" title="${pdf.fileName}">📄 ${shortName}</div>
-            <div class="pdf-downloads ${isEligible ? 'eligible' : ''}">${pdf.downloadCount} downloads</div>
-          </div>
-          ${uploadDate ? `
-            <div class="pdf-date" style="font-size: 11px; color: #666; margin-top: 4px;">
-              📅 ${uploadDate}
+          <div class="pdf-header" style="display: flex; align-items: flex-start; gap: 8px;">
+            ${isEligible ? `
+              <input type="checkbox" class="pdf-checkbox" data-index="${index}" 
+                     ${isSelected ? 'checked' : ''} 
+                     style="margin-top: 2px; cursor: pointer;">
+            ` : ''}
+            <div style="flex: 1;">
+              <div class="pdf-name" title="${pdf.fileName}">📄 ${shortName}</div>
+              <div class="pdf-downloads ${isEligible ? 'eligible' : ''}">${pdf.downloadCount} downloads</div>
+              ${uploadDate ? `
+                <div class="pdf-date" style="font-size: 11px; color: #666; margin-top: 4px;">
+                  📅 ${uploadDate}
+                </div>
+              ` : ''}
             </div>
-          ` : ''}
+          </div>
           ${isEligible ? `
             <div class="pdf-actions">
               <button class="pdf-btn pdf-btn-download" data-action="download" data-index="${index}">
@@ -179,8 +188,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     pdfListElement.innerHTML = pdfListHtml;
 
-    // Add event listeners for PDF actions
+    // Add batch download controls if there are eligible PDFs
+    const eligibleCount = scannedPDFs.filter(pdf => pdf.downloadCount >= 5).length;
+    if (eligibleCount > 0) {
+      const batchControls = `
+        <div class="batch-controls" style="margin-top: 15px; padding: 10px; border-top: 1px solid #ddd;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 12px; color: #666;">
+              <span id="selected-count">0</span> of ${eligibleCount} selected
+            </span>
+            <button id="select-all-btn" class="pdf-btn" style="font-size: 11px; padding: 4px 8px;">
+              Select All
+            </button>
+          </div>
+          <button id="download-selected-btn" class="pdf-btn pdf-btn-download" style="width: 100%; opacity: 0.5;" disabled>
+            ⬇️ Download Selected
+          </button>
+        </div>
+      `;
+      pdfListElement.insertAdjacentHTML('beforeend', batchControls);
+    }
+
+    // Add event listeners for PDF actions and checkboxes
     pdfListElement.addEventListener('click', handlePDFAction);
+    pdfListElement.addEventListener('change', handleCheckboxChange);
   }
 
   // Handle PDF actions (download only)
@@ -207,10 +238,110 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Add event listener for view downloads button (dynamically added)
+  // Handle checkbox changes for PDF selection
+  function handleCheckboxChange(event: Event) {
+    const target = event.target as HTMLInputElement;
+    if (target.classList.contains('pdf-checkbox')) {
+      const index = parseInt(target.dataset.index || '0');
+      
+      if (target.checked) {
+        selectedPDFs.add(index);
+      } else {
+        selectedPDFs.delete(index);
+      }
+      
+      updateBatchControls();
+    }
+  }
+
+  // Update batch control buttons and counters
+  function updateBatchControls() {
+    const selectedCountElement = document.getElementById('selected-count');
+    const downloadSelectedBtn = document.getElementById('download-selected-btn') as HTMLButtonElement;
+    const selectAllBtn = document.getElementById('select-all-btn') as HTMLButtonElement;
+    
+    if (selectedCountElement) {
+      selectedCountElement.textContent = selectedPDFs.size.toString();
+    }
+    
+    if (downloadSelectedBtn) {
+      downloadSelectedBtn.disabled = selectedPDFs.size === 0;
+      downloadSelectedBtn.style.opacity = selectedPDFs.size === 0 ? '0.5' : '1';
+    }
+    
+    if (selectAllBtn) {
+      const eligiblePDFs = scannedPDFs.filter(pdf => pdf.downloadCount >= 5);
+      const allSelected = eligiblePDFs.length > 0 && selectedPDFs.size === eligiblePDFs.length;
+      selectAllBtn.textContent = allSelected ? 'Deselect All' : 'Select All';
+    }
+  }
+
+  // Handle batch download
+  async function handleBatchDownload() {
+    if (selectedPDFs.size === 0) return;
+    
+    const selectedPDFList = Array.from(selectedPDFs).map(index => scannedPDFs[index]);
+    showMessage(`📦 Starting batch download of ${selectedPDFList.length} PDFs...`, 'success');
+    
+    let downloadedCount = 0;
+    for (const pdf of selectedPDFList) {
+      try {
+        await new Promise<void>((resolve) => {
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const currentTab = tabs[0];
+            if (currentTab?.id) {
+              chrome.tabs.sendMessage(currentTab.id, { 
+                action: 'downloadPDF', 
+                pdfIndex: pdf.index 
+              });
+              downloadedCount++;
+              showMessage(`📄 Downloaded ${downloadedCount}/${selectedPDFList.length}: ${pdf.fileName}`, 'success');
+              
+              // Wait a bit between downloads
+              setTimeout(resolve, 2000);
+            } else {
+              resolve();
+            }
+          });
+        });
+      } catch (error) {
+        console.error('Error downloading PDF:', pdf.fileName, error);
+      }
+    }
+    
+    showMessage(`✅ Batch download completed! Downloaded ${downloadedCount} PDFs`, 'success');
+    
+    // Clear selections
+    selectedPDFs.clear();
+    updatePDFList();
+  }
+
+  // Handle select all/deselect all
+  function handleSelectAll() {
+    const eligiblePDFs = scannedPDFs.map((pdf, index) => ({ pdf, index })).filter(({ pdf }) => pdf.downloadCount >= 5);
+    const allSelected = eligiblePDFs.length > 0 && selectedPDFs.size === eligiblePDFs.length;
+    
+    if (allSelected) {
+      // Deselect all
+      selectedPDFs.clear();
+    } else {
+      // Select all eligible PDFs
+      eligiblePDFs.forEach(({ index }) => selectedPDFs.add(index));
+    }
+    
+    updatePDFList();
+  }
+
+  // Add event listeners for dynamically added buttons
   document.addEventListener('click', function(e) {
-    if ((e.target as HTMLElement).id === 'view-downloads') {
+    const target = e.target as HTMLElement;
+    
+    if (target.id === 'view-downloads') {
       showDownloadHistory();
+    } else if (target.id === 'download-selected-btn') {
+      handleBatchDownload();
+    } else if (target.id === 'select-all-btn') {
+      handleSelectAll();
     }
   });
 
