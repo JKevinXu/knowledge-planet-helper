@@ -2,11 +2,10 @@
 
 document.addEventListener('DOMContentLoaded', function() {
   const scanPDFsButton = document.getElementById('scanPDFs') as HTMLButtonElement;
-  const clearDataButton = document.getElementById('clearData') as HTMLButtonElement;
+  
 
   const messageDiv = document.getElementById('message') as HTMLDivElement;
-  const pdfCountElement = document.getElementById('pdfCount') as HTMLElement;
-  const eligibleCountElement = document.getElementById('eligibleCount') as HTMLElement;
+  
   const pdfListElement = document.getElementById('pdfList') as HTMLElement;
 
   // Store scanned PDFs
@@ -42,8 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
       updatePDFList();
       
       // Update stats in real-time
-      pdfCountElement.textContent = scanned.toString();
-      eligibleCountElement.textContent = eligible.toString();
+      
       
       if (currentPdf) {
         const status = currentPdf.downloadCount >= 5 ? '✅ Eligible' : '⏳ Not eligible';
@@ -57,8 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
       updatePDFList();
       
       // Update final stats
-      pdfCountElement.textContent = total.toString();
-      eligibleCountElement.textContent = eligible.toString();
+      
       
       showMessage(`✅ Scan complete! Found ${total} PDFs, ${eligible} eligible for download`, 'success');
       loadDownloadStats(); // Refresh stats
@@ -93,18 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Clear data button functionality
-  clearDataButton.addEventListener('click', async function() {
-    if (confirm('Are you sure you want to clear all extension data?')) {
-      try {
-        await chrome.storage.local.clear();
-        showMessage('🗑️ All data cleared successfully', 'success');
-        loadDownloadStats(); // Refresh stats
-      } catch (error) {
-        showMessage('❌ Error clearing data', 'error');
-      }
-    }
-  });
+
 
   // Show message function
   function showMessage(text: string, type: 'success' | 'warning' | 'error' = 'success') {
@@ -129,8 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const totalTracked = Object.keys(downloadStats).length;
       const eligibleCount = Object.values(downloadStats).filter((count: any) => count >= 5).length;
       
-      pdfCountElement.textContent = totalTracked.toString();
-      eligibleCountElement.textContent = eligibleCount.toString();
+      
       
     } catch (error) {
       console.error('Error loading download stats:', error);
