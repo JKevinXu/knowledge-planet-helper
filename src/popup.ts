@@ -153,6 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const pdfListHtml = scannedPDFs.map((pdf, index) => {
       const isEligible = pdf.downloadCount >= 5;
       const shortName = pdf.fileName.length > 45 ? pdf.fileName.substring(0, 45) + '...' : pdf.fileName;
+      const uploadDate = pdf.uploadDate || '';
       
       return `
         <div class="pdf-item" data-index="${index}">
@@ -160,6 +161,11 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="pdf-name" title="${pdf.fileName}">📄 ${shortName}</div>
             <div class="pdf-downloads ${isEligible ? 'eligible' : ''}">${pdf.downloadCount} downloads</div>
           </div>
+          ${uploadDate ? `
+            <div class="pdf-date" style="font-size: 11px; color: #666; margin-top: 4px;">
+              📅 ${uploadDate}
+            </div>
+          ` : ''}
           ${isEligible ? `
             <div class="pdf-actions">
               <button class="pdf-btn pdf-btn-download" data-action="download" data-index="${index}">

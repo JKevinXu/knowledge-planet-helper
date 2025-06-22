@@ -8,6 +8,7 @@ interface PDFInfo {
   element: HTMLElement;
   fileName: string;
   downloadCount: number;
+  uploadDate: string;
   index: number;
 }
 
@@ -89,12 +90,16 @@ function extractDownloadCount(): number {
 }
 
 // Function to get PDF info from the modal
-function getPDFInfoFromModal(): { downloadCount: number; fileName: string } {
+function getPDFInfoFromModal(): { downloadCount: number; fileName: string; uploadDate: string } {
   console.log('📋 Extracting PDF info from modal...');
   
   // Get filename from modal
   const fileNameElement = document.querySelector('app-file-preview .file-name');
   const fileName = fileNameElement?.textContent?.trim() || '';
+  
+  // Get upload date from modal
+  const uploadDateElement = document.querySelector('app-file-preview .upload-date');
+  const uploadDate = uploadDateElement?.textContent?.trim() || '';
   
   // Get download count from modal text
   let downloadCount = 0;
@@ -120,11 +125,12 @@ function getPDFInfoFromModal(): { downloadCount: number; fileName: string } {
     }
   }
   
-  console.log(`📊 Final extracted info - File: "${fileName}", Downloads: ${downloadCount}`);
+  console.log(`📊 Final extracted info - File: "${fileName}", Downloads: ${downloadCount}, Upload Date: "${uploadDate}"`);
   
   return {
     downloadCount,
-    fileName
+    fileName,
+    uploadDate
   };
 }
 
@@ -306,9 +312,9 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
           console.log(`📋 [${pdfIndex + 1}] Modal filename: ${modalFileName}`);
           
           if (modalFileName === fileName) {
-            const { downloadCount } = getPDFInfoFromModal();
+            const { downloadCount, uploadDate } = getPDFInfoFromModal();
             
-            console.log(`📊 [${pdfIndex + 1}] PDF: ${fileName} - ${downloadCount} downloads`);
+            console.log(`📊 [${pdfIndex + 1}] PDF: ${fileName} - ${downloadCount} downloads, uploaded: ${uploadDate}`);
             
             // Close modal and wait for it to disappear
             await closeModal();
@@ -321,6 +327,7 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
                 element: pdfElement,
                 fileName,
                 downloadCount,
+                uploadDate,
                 index: pdfIndex
               });
               console.log(`📊 [${pdfIndex + 1}] PDF "${fileName}" has ${downloadCount} downloads ${downloadCount >= 5 ? '(eligible)' : '(not eligible)'}`);
@@ -411,6 +418,7 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
       scannedPDFs.push({
         fileName: pdfInfo.fileName,
         downloadCount: pdfInfo.downloadCount,
+        uploadDate: pdfInfo.uploadDate,
         index: i
       });
       
@@ -423,6 +431,7 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
       scannedPDFs.push({
         fileName: fileName,
         downloadCount: 0,
+        uploadDate: '',
         index: i
       });
     }
@@ -476,6 +485,7 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
       scannedPDFs.push({
         fileName: pdfInfo.fileName,
         downloadCount: pdfInfo.downloadCount,
+        uploadDate: pdfInfo.uploadDate,
         index: i
       });
       
@@ -488,6 +498,7 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
       scannedPDFs.push({
         fileName: fileName,
         downloadCount: 0,
+        uploadDate: '',
         index: i
       });
     }
