@@ -144,31 +144,32 @@ document.addEventListener('DOMContentLoaded', function() {
       
       return `
         <div class="pdf-item" data-index="${index}">
-          <div class="pdf-header" style="display: flex; align-items: flex-start; gap: 8px;">
+          <div style="display: flex; align-items: flex-start; gap: 8px;">
             ${isEligible ? `
               <input type="checkbox" class="pdf-checkbox" data-index="${index}" 
                      ${isSelected ? 'checked' : ''} 
                      style="margin-top: 2px; cursor: pointer;">
             ` : ''}
-            <div style="flex: 1;">
+            <div style="flex: 1; min-width: 0;">
               <div class="pdf-name" title="${pdf.fileName}">📄 ${shortName}</div>
-              <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px;">
-                <div class="pdf-downloads ${isEligible ? 'eligible' : ''}">${pdf.downloadCount} downloads</div>
-                ${uploadDate ? `
-                  <div class="pdf-date" style="font-size: 11px; color: #666;">
-                    📅 ${uploadDate}
-                  </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;">
+                  <div class="pdf-downloads ${isEligible ? 'eligible' : ''}">${pdf.downloadCount} downloads</div>
+                  ${uploadDate ? `
+                    <div class="pdf-date" style="font-size: 11px; color: #666;">
+                      📅 ${uploadDate}
+                    </div>
+                  ` : ''}
+                </div>
+                ${isEligible ? `
+                  <button class="pdf-btn pdf-btn-download" data-action="download" data-index="${index}" 
+                          style="padding: 2px 6px; font-size: 9px; margin: 0; width: 20px; height: 20px; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                    ⬇️
+                  </button>
                 ` : ''}
               </div>
             </div>
           </div>
-          ${isEligible ? `
-            <div class="pdf-actions">
-              <button class="pdf-btn pdf-btn-download" data-action="download" data-index="${index}">
-                ⬇️ Download
-              </button>
-            </div>
-          ` : ''}
         </div>
       `;
     }).join('');
