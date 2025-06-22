@@ -180,18 +180,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const eligibleCount = scannedPDFs.filter(pdf => pdf.downloadCount >= 5).length;
     if (eligibleCount > 0) {
       const batchControls = `
-        <div class="batch-controls" style="margin-top: 15px; padding: 10px; border-top: 1px solid #ddd;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <span style="font-size: 12px; color: #666;">
+        <div class="batch-controls" style="margin-top: 10px; padding: 8px; border-top: 1px solid #ddd;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span style="font-size: 11px; color: #666; flex-shrink: 0;">
               <span id="selected-count">0</span> of ${eligibleCount} selected
             </span>
-            <button id="select-all-btn" class="pdf-btn" style="font-size: 11px; padding: 4px 8px;">
-              Select All
-            </button>
+            <div style="display: flex; gap: 6px;">
+              <button id="select-all-btn" class="pdf-btn" style="font-size: 10px; padding: 3px 6px; width: auto; min-width: auto;">
+                Select All
+              </button>
+              <button id="download-selected-btn" class="pdf-btn pdf-btn-download" style="font-size: 10px; padding: 3px 8px; opacity: 0.5; width: auto; min-width: auto;" disabled>
+                ⬇️ Download
+              </button>
+            </div>
           </div>
-          <button id="download-selected-btn" class="pdf-btn pdf-btn-download" style="width: 100%; opacity: 0.5;" disabled>
-            ⬇️ Download Selected
-          </button>
         </div>
       `;
       pdfListElement.insertAdjacentHTML('beforeend', batchControls);
