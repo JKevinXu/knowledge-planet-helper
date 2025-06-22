@@ -167,12 +167,14 @@ document.addEventListener('DOMContentLoaded', function() {
             ` : ''}
             <div style="flex: 1;">
               <div class="pdf-name" title="${pdf.fileName}">📄 ${shortName}</div>
-              <div class="pdf-downloads ${isEligible ? 'eligible' : ''}">${pdf.downloadCount} downloads</div>
-              ${uploadDate ? `
-                <div class="pdf-date" style="font-size: 11px; color: #666; margin-top: 4px;">
-                  📅 ${uploadDate}
-                </div>
-              ` : ''}
+              <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px;">
+                <div class="pdf-downloads ${isEligible ? 'eligible' : ''}">${pdf.downloadCount} downloads</div>
+                ${uploadDate ? `
+                  <div class="pdf-date" style="font-size: 11px; color: #666;">
+                    📅 ${uploadDate}
+                  </div>
+                ` : ''}
+              </div>
             </div>
           </div>
           ${isEligible ? `
