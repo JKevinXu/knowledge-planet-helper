@@ -75,11 +75,12 @@ chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
       if (originalFilename.includes(key) || key.includes(originalFilename.replace(/\.[^/.]+$/, ""))) {
         console.log(`🎯 Found matching metadata for download: ${metadata.fileName}`);
         
-        // Create new filename with upload date at the start (date only, no time)
+        // Create new filename with upload date and download count at the start
         const fileExtension = originalFilename.split('.').pop() || 'pdf';
         const baseFileName = metadata.fileName.replace(/\.[^/.]+$/, ''); // Remove extension
         const uploadDate = metadata.uploadDate.split(' ')[0]; // Extract only the date part (YYYY-MM-DD)
-        const newFileName = `${uploadDate}_${baseFileName}.${fileExtension}`;
+        const downloadCount = metadata.downloadCount;
+        const newFileName = `${uploadDate}_${downloadCount}downloads_${baseFileName}.${fileExtension}`;
         
         console.log(`📝 Renaming download: ${originalFilename} → ${newFileName}`);
         
