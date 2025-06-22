@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const pdfListHtml = scannedPDFs.map((pdf, index) => {
       const isEligible = pdf.downloadCount >= 5;
-      const shortName = pdf.fileName.length > 45 ? pdf.fileName.substring(0, 45) + '...' : pdf.fileName;
+      const shortName = pdf.fileName.length > 65 ? pdf.fileName.substring(0, 65) + '...' : pdf.fileName;
       const uploadDate = pdf.uploadDate || '';
       const isSelected = selectedPDFs.has(index);
       

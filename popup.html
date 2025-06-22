@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <style>
     body {
-      width: 350px;
+      width: 500px;
       height: 600px;
       padding: 0;
       margin: 0;
@@ -238,8 +238,9 @@
     .pdf-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 6px;
+      gap: 8px;
     }
 
     .pdf-name {
@@ -251,6 +252,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       margin-right: 8px;
+      min-width: 0;
     }
 
     .pdf-downloads {
