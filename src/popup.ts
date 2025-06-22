@@ -207,6 +207,9 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       `;
       pdfListElement.insertAdjacentHTML('beforeend', batchControls);
+      
+      // Update batch controls to reflect current selection state
+      updateBatchControls();
     }
 
     // Add event listeners for PDF actions and checkboxes
@@ -330,6 +333,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     updatePDFList();
+    // Also update the batch controls after the list is updated
+    setTimeout(() => updateBatchControls(), 0);
   }
 
   // Add event listeners for dynamically added buttons
