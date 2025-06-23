@@ -266,36 +266,10 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
     
     // Wait a bit to ensure page is ready
     setTimeout(async () => {
-      console.log(`📱 [${pdfIndex + 1}] Clicking PDF element with multiple methods...`);
+      console.log(`📱 [${pdfIndex + 1}] Clicking PDF element...`);
       
-      // Method 1: Regular click
+      // Single click method - most reliable
       pdfElement.click();
-      
-      // Method 2: Dispatch click event
-      setTimeout(() => {
-        const clickEvent = new MouseEvent('click', {
-          view: window,
-          bubbles: true,
-          cancelable: true
-        });
-        pdfElement.dispatchEvent(clickEvent);
-      }, 100);
-      
-      // Method 3: Try clicking child elements
-      setTimeout(() => {
-        const fileIcon = pdfElement.querySelector('.file-icon');
-        const fileName = pdfElement.querySelector('.file-name');
-        
-        if (fileIcon) {
-          console.log('📱 Also clicking file icon...');
-          (fileIcon as HTMLElement).click();
-        }
-        
-        if (fileName) {
-          console.log('📱 Also clicking file name...');
-          (fileName as HTMLElement).click();
-        }
-      }, 200);
       
       // Wait for modal to be fully loaded before extracting info
       setTimeout(async () => {

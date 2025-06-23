@@ -23,6 +23,21 @@ let popupPort: chrome.runtime.Port | null = null;
 // Store pending downloads with their metadata
 let pendingDownloads: Map<string, { fileName: string; uploadDate: string; downloadCount: number }> = new Map();
 
+// Track processed downloads to prevent duplicates
+let processedDownloads: Set<string> = new Set();
+
+// Simple hash function for creating reliable keys
+function createDownloadHash(fileName: string, downloadCount: number, uploadDate: string): string {
+  const input = `${fileName.trim()}_${downloadCount}_${uploadDate.trim()}`;
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16);
+}
+
 // Listen for popup connection
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name === 'popup') {
@@ -70,10 +85,27 @@ chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
     const originalFilename = downloadItem.filename || '';
     console.log(`📄 Knowledge Planet download detected: ${originalFilename}`);
     
-    // Try to find matching pending download
-    for (const [key, metadata] of pendingDownloads.entries()) {
-      if (originalFilename.includes(key) || key.includes(originalFilename.replace(/\.[^/.]+$/, ""))) {
-        console.log(`🎯 Found matching metadata for download: ${metadata.fileName}`);
+    // Check if this download was already processed (prevent duplicates)
+    const downloadKey = `${originalFilename}_${downloadItem.url}`;
+    if (processedDownloads.has(downloadKey)) {
+      console.log(`⚠️ Duplicate download detected, skipping: ${originalFilename}`);
+      return false; // Let browser handle with original filename
+    }
+    
+    // Try to find matching pending download using hash-based matching only
+    console.log(`🔍 Looking for hash match among ${pendingDownloads.size} pending downloads`);
+    console.log(`📋 Available hashes:`, Array.from(pendingDownloads.keys()));
+    
+    // Find exact hash match by recreating hash from metadata
+    for (const [hash, metadata] of pendingDownloads.entries()) {
+      // Try to recreate the hash from the metadata
+      const expectedHash = createDownloadHash(metadata.fileName, metadata.downloadCount, metadata.uploadDate);
+      
+      if (hash === expectedHash) {
+        console.log(`🎯 Found exact hash match: ${hash} for "${metadata.fileName}"`);
+        
+        // Mark this download as processed
+        processedDownloads.add(downloadKey);
         
         // Create new filename with upload date and download count at the start
         const fileExtension = originalFilename.split('.').pop() || 'pdf';
@@ -88,23 +120,30 @@ chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
         suggest({ filename: newFileName });
         
         // Remove from pending downloads
-        pendingDownloads.delete(key);
+        pendingDownloads.delete(hash);
         return true; // Indicate we handled the filename
       }
     }
+    
+    console.warn(`❌ No hash match found for "${originalFilename}"`);
+    console.log(`📋 Available metadata:`, Array.from(pendingDownloads.values()).map(m => `${m.fileName} (${createDownloadHash(m.fileName, m.downloadCount, m.uploadDate)})`));
   }
   
   // If no metadata found, use original filename
   return false;
 });
 
-// Clean up old pending downloads periodically
+// Clean up old pending downloads and processed downloads periodically
 setInterval(() => {
   if (pendingDownloads.size > 0) {
     console.log(`🧹 Cleaning up ${pendingDownloads.size} pending downloads`);
     pendingDownloads.clear();
   }
-  }, 60000); // Clean up every minute
+  if (processedDownloads.size > 0) {
+    console.log(`🧹 Cleaning up ${processedDownloads.size} processed downloads`);
+    processedDownloads.clear();
+  }
+}, 60000); // Clean up every minute
 
 // Function to register download metadata for filename modification
 function handleRegisterDownload(request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) {
@@ -112,17 +151,19 @@ function handleRegisterDownload(request: any, sender: chrome.runtime.MessageSend
   
   console.log(`📝 Registering download metadata: ${fileName} (${uploadDate})`);
   
-  // Create a key that can match the actual download filename
-  const fileKey = fileName.replace(/\.[^/.]+$/, ''); // Remove extension for matching
+  // Create hash-based key for reliable matching
+  const hashKey = createDownloadHash(fileName, downloadCount, uploadDate);
   
-  // Store metadata for the upcoming download
-  pendingDownloads.set(fileKey, {
+  // Store metadata with hash key
+  const metadata = {
     fileName,
     uploadDate,
     downloadCount
-  });
+  };
   
-  console.log(`✅ Download metadata registered for: ${fileKey}`);
+  pendingDownloads.set(hashKey, metadata);
+  
+  console.log(`✅ Download metadata registered with hash: ${hashKey} for "${fileName}"`);
   sendResponse({ success: true, message: 'Download metadata registered' });
 }
 
