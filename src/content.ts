@@ -895,9 +895,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ pdfs: pdfData });
   } else if (request.action === 'downloadPDF') {
     const allPDFs = detectPDFFiles();
-    if (allPDFs[request.pdfIndex]) {
-      // First click to open modal
-      allPDFs[request.pdfIndex].click();
+    let targetElement: HTMLElement | undefined = allPDFs[request.pdfIndex];
+    
+    // Verify filename matches to prevent race condition
+    if (targetElement && request.expectedFileName) {
+      const actualFileName = targetElement.querySelector('.file-name')?.textContent?.trim();
+      
+      if (actualFileName !== request.expectedFileName) {
+        console.warn(`⚠️ PDF order changed! Expected: "${request.expectedFileName}", Got: "${actualFileName}"`);
+        
+        // Find correct PDF by filename
+        targetElement = allPDFs.find(pdf => 
+          pdf.querySelector('.file-name')?.textContent?.trim() === request.expectedFileName
+        );
+        
+        if (targetElement) {
+          console.log(`✅ Found correct PDF by filename: "${request.expectedFileName}"`);
+        } else {
+          console.error(`❌ Could not find PDF with filename: "${request.expectedFileName}"`);
+        }
+      }
+    }
+    
+    if (targetElement) {
+      // Click the verified element
+      targetElement.click();
       
       // Wait for modal to open, then register metadata and trigger download
       setTimeout(async () => {

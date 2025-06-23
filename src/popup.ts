@@ -224,7 +224,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Send message to download PDF
         chrome.tabs.sendMessage(currentTab.id, { 
           action: 'downloadPDF', 
-          pdfIndex: index 
+          pdfIndex: index,
+          expectedFileName: pdf.fileName
         });
         showMessage(`📄 Downloading: ${pdf.fileName}`, 'success');
       }
@@ -285,7 +286,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (currentTab?.id) {
               chrome.tabs.sendMessage(currentTab.id, { 
                 action: 'downloadPDF', 
-                pdfIndex: pdf.index 
+                pdfIndex: pdf.index,
+                expectedFileName: pdf.fileName
               });
               downloadedCount++;
               showMessage(`📄 Downloaded ${downloadedCount}/${selectedPDFList.length}: ${pdf.fileName}`, 'success');
