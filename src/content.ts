@@ -366,15 +366,15 @@ async function scanAllPDFs(): Promise<PDFInfo[]> {
     return eligiblePDFs;
   }
   
-  console.log(`🔍 [DEBUG] Starting scan of FIRST 3 PDFs only (out of ${allPDFs.length} total) for debugging...`);
+  console.log(`🔍 [DEBUG] Starting scan of FIRST 10 PDFs only (out of ${allPDFs.length} total) for debugging...`);
   
   // Show scanning message
-  showDownloadMessage(`🔍 [DEBUG] Scanning first 3 PDFs only for debugging...`, 'info');
+  showDownloadMessage(`🔍 [DEBUG] Scanning first 10 PDFs only for debugging...`, 'info');
   
-  // DEBUG: Scan only the first 3 PDFs
-  const maxScans = Math.min(3, allPDFs.length);
+  // DEBUG: Scan only the first 10 PDFs
+  const maxScans = Math.min(10, allPDFs.length);
   for (let i = 0; i < maxScans; i++) {
-    console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 3 only) ---`);
+          console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 10 only) ---`);
     
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
     if (pdfInfo && pdfInfo.downloadCount >= 5) {
@@ -389,7 +389,7 @@ async function scanAllPDFs(): Promise<PDFInfo[]> {
     }
   }
   
-  console.log(`\n🎯 [DEBUG] Scan complete! Found ${eligiblePDFs.length} eligible PDFs (first 3 PDFs only)`);
+  console.log(`\n🎯 [DEBUG] Scan complete! Found ${eligiblePDFs.length} eligible PDFs (first 10 PDFs only)`);
   
   return eligiblePDFs;
 }
@@ -402,15 +402,15 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
     return { success: false, pdfs: [], eligible: 0 };
   }
   
-  console.log(`🔍 [DEBUG] Starting popup scan of FIRST 3 PDFs only (out of ${allPDFs.length} total) for debugging...`);
+  console.log(`🔍 [DEBUG] Starting popup scan of FIRST 10 PDFs only (out of ${allPDFs.length} total) for debugging...`);
   
   const scannedPDFs: any[] = [];
   let eligibleCount = 0;
   
-  // DEBUG: Scan only the first 3 PDFs
-  const maxScans = Math.min(3, allPDFs.length);
+  // DEBUG: Scan only the first 10 PDFs
+  const maxScans = Math.min(10, allPDFs.length);
   for (let i = 0; i < maxScans; i++) {
-    console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 3 only) for popup ---`);
+    console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 10 only) for popup ---`);
     
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
     
@@ -442,7 +442,7 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
     }
   }
   
-  console.log(`🎯 [DEBUG] Popup scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first 3 PDFs only)`);
+  console.log(`🎯 [DEBUG] Popup scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first 10 PDFs only)`);
   
   return { 
     success: true, 
@@ -459,25 +459,25 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     return { success: false, pdfs: [], eligible: 0 };
   }
   
-  console.log(`🔍 [DEBUG] Starting progressive popup scan of FIRST 3 PDFs only (out of ${allPDFs.length} total) for debugging...`);
+  console.log(`🔍 [DEBUG] Starting progressive popup scan of FIRST 10 PDFs only (out of ${allPDFs.length} total) for debugging...`);
   
   const scannedPDFs: any[] = [];
   let eligibleCount = 0;
-  const maxScans = Math.min(3, allPDFs.length);
+  const maxScans = Math.min(10, allPDFs.length);
   
   // Send initial scan start message
   chrome.runtime.sendMessage({
     action: 'scanProgress',
     type: 'start',
-    total: maxScans, // DEBUG: Only 3 PDFs
+    total: maxScans, // DEBUG: Only 10 PDFs
     scanned: 0,
     eligible: 0,
     pdfs: []
   });
   
-  // DEBUG: Scan only the first 3 PDFs
+  // DEBUG: Scan only the first 10 PDFs
   for (let i = 0; i < maxScans; i++) {
-    console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 3 only) for progressive update ---`);
+    console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 10 only) for progressive update ---`);
     
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
     
@@ -507,7 +507,7 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     chrome.runtime.sendMessage({
       action: 'scanProgress',
       type: 'progress',
-      total: maxScans, // DEBUG: Only 3 PDFs
+      total: maxScans, // DEBUG: Only 10 PDFs
       scanned: i + 1,
       eligible: eligibleCount,
       pdfs: [...scannedPDFs], // Send copy of current results
@@ -524,13 +524,13 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
   chrome.runtime.sendMessage({
     action: 'scanProgress',
     type: 'complete',
-    total: maxScans, // DEBUG: Only 3 PDFs
+    total: maxScans, // DEBUG: Only 10 PDFs
     scanned: maxScans,
     eligible: eligibleCount,
     pdfs: scannedPDFs
   });
   
-  console.log(`🎯 [DEBUG] Progressive scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first 3 PDFs only)`);
+  console.log(`🎯 [DEBUG] Progressive scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible (first 10 PDFs only)`);
   
   return { 
     success: true, 

@@ -136,37 +136,47 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    const pdfListHtml = scannedPDFs.map((pdf, index) => {
-      const isEligible = pdf.downloadCount >= 5;
+    // Filter to show only eligible PDFs (5+ downloads)
+    const eligiblePDFs = scannedPDFs.filter(pdf => pdf.downloadCount >= 5);
+    const totalScanned = scannedPDFs.length;
+    
+    if (eligiblePDFs.length === 0) {
+      pdfListElement.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <div class="empty-text">No eligible PDFs found</div>
+          <div class="empty-subtext">Scanned ${totalScanned} PDFs - none have 5+ downloads</div>
+        </div>
+      `;
+      return;
+    }
+
+    const pdfListHtml = eligiblePDFs.map((pdf, index) => {
       const shortName = pdf.fileName.length > 65 ? pdf.fileName.substring(0, 65) + '...' : pdf.fileName;
       const uploadDate = pdf.uploadDate || '';
-      const isSelected = selectedPDFs.has(index);
+      const isSelected = selectedPDFs.has(pdf.index); // Use original index from scannedPDFs
       
       return `
-        <div class="pdf-item" data-index="${index}">
+        <div class="pdf-item" data-index="${pdf.index}">
           <div style="display: flex; align-items: flex-start; gap: 8px;">
-            ${isEligible ? `
-              <input type="checkbox" class="pdf-checkbox" data-index="${index}" 
-                     ${isSelected ? 'checked' : ''} 
-                     style="margin-top: 2px; cursor: pointer;">
-            ` : ''}
+            <input type="checkbox" class="pdf-checkbox" data-index="${pdf.index}" 
+                   ${isSelected ? 'checked' : ''} 
+                   style="margin-top: 2px; cursor: pointer;">
             <div style="flex: 1; min-width: 0;">
               <div class="pdf-name" title="${pdf.fileName}">📄 ${shortName}</div>
               <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;">
-                  <div class="pdf-downloads ${isEligible ? 'eligible' : ''}">${pdf.downloadCount} downloads</div>
+                  <div class="pdf-downloads eligible">${pdf.downloadCount} downloads</div>
                   ${uploadDate ? `
                     <div class="pdf-date" style="font-size: 11px; color: #666;">
                       📅 ${uploadDate}
                     </div>
                   ` : ''}
                 </div>
-                ${isEligible ? `
-                  <button class="pdf-btn pdf-btn-download" data-action="download" data-index="${index}" 
-                          style="padding: 2px 6px; font-size: 9px; margin: 0; width: 20px; height: 20px; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
-                    ⬇️
-                  </button>
-                ` : ''}
+                <button class="pdf-btn pdf-btn-download" data-action="download" data-index="${pdf.index}" 
+                        style="padding: 2px 6px; font-size: 9px; margin: 0; width: 20px; height: 20px; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                  ⬇️
+                </button>
               </div>
             </div>
           </div>
@@ -176,8 +186,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     pdfListElement.innerHTML = pdfListHtml;
 
-    // Add batch download controls if there are eligible PDFs
-    const eligibleCount = scannedPDFs.filter(pdf => pdf.downloadCount >= 5).length;
+    // Add note about filtering and batch controls
+    const eligibleCount = eligiblePDFs.length;
+    const filterNote = `
+      <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; color: #6c757d;">
+        ℹ️ Showing only PDFs with 5+ downloads (${eligibleCount} eligible)
+      </div>
+    `;
+    pdfListElement.insertAdjacentHTML('afterbegin', filterNote);
+
     if (eligibleCount > 0) {
       const batchControls = `
         <div class="batch-controls" style="margin-top: 10px; padding: 8px; border-top: 1px solid #ddd;">
@@ -313,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Handle select all/deselect all
   function handleSelectAll() {
-    const eligiblePDFs = scannedPDFs.map((pdf, index) => ({ pdf, index })).filter(({ pdf }) => pdf.downloadCount >= 5);
+    const eligiblePDFs = scannedPDFs.filter(pdf => pdf.downloadCount >= 5);
     const allSelected = eligiblePDFs.length > 0 && selectedPDFs.size === eligiblePDFs.length;
     
     if (allSelected) {
@@ -321,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
       selectedPDFs.clear();
     } else {
       // Select all eligible PDFs
-      eligiblePDFs.forEach(({ index }) => selectedPDFs.add(index));
+      eligiblePDFs.forEach(pdf => selectedPDFs.add(pdf.index));
     }
     
     updatePDFList();
