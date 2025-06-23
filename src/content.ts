@@ -3,6 +3,9 @@
 // Content script for Knowledge Planet Helper
 console.log('Knowledge Planet Helper: Content script loaded! 🎯');
 
+// Track ongoing downloads to prevent duplicates
+let ongoingDownloads: Set<string> = new Set();
+
 // Interface for PDF info
 interface PDFInfo {
   element: HTMLElement;
@@ -331,42 +334,7 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
   });
 }
 
-// Function to scan all PDFs and get eligible ones
-async function scanAllPDFs(): Promise<PDFInfo[]> {
-  const allPDFs = detectPDFFiles();
-  const eligiblePDFs: PDFInfo[] = [];
-  
-  if (allPDFs.length === 0) {
-    return eligiblePDFs;
-  }
-  
-  console.log(`🔍 [DEBUG] Starting scan of FIRST 10 PDFs only (out of ${allPDFs.length} total) for debugging...`);
-  
-  // Show scanning message
-  showDownloadMessage(`🔍 [DEBUG] Scanning first 10 PDFs only for debugging...`, 'info');
-  
-  // DEBUG: Scan only the first 10 PDFs
-  const maxScans = Math.min(10, allPDFs.length);
-  for (let i = 0; i < maxScans; i++) {
-          console.log(`\n--- [DEBUG] Scanning PDF ${i + 1}/${maxScans} (first 10 only) ---`);
-    
-    const pdfInfo = await scanSinglePDF(allPDFs[i], i);
-    if (pdfInfo && pdfInfo.downloadCount >= 5) {
-      eligiblePDFs.push(pdfInfo);
-      console.log(`✅ Added eligible PDF: ${pdfInfo.fileName} (${pdfInfo.downloadCount} downloads)`);
-    }
-    
-    // Add delay between scans
-    if (i < maxScans - 1) {
-      console.log(`⏸️ Waiting before next scan...`);
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-  }
-  
-  console.log(`\n🎯 [DEBUG] Scan complete! Found ${eligiblePDFs.length} eligible PDFs (first 10 PDFs only)`);
-  
-  return eligiblePDFs;
-}
+
 
 // Function to scan all PDFs and return results for popup
 async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], eligible: number}> {
@@ -531,100 +499,14 @@ function handlePDFModal() {
     url: window.location.href
   });
 
-  // Auto-download button in modal has been removed
-  // PDFs can still be downloaded through the helper UI and popup
+  // Auto-download button completely disabled - using popup-based downloads only
   if (downloadCount >= 5) {
-    console.log(`✅ PDF "${fileName}" has ${downloadCount} downloads, eligible for auto-download`);
-    // addAutoDownloadButton call removed - no auto-download button in modal
+    console.log(`✅ PDF "${fileName}" has ${downloadCount} downloads, eligible for popup download`);
+    // All downloads now happen through popup interface to prevent duplicate events
   }
 }
 
-// Function to add auto-download button to modal
-function addAutoDownloadButton(originalButton: HTMLElement, fileName: string, downloadCount: number) {
-  // Check if auto-download button already exists
-  if (document.querySelector('.kp-auto-download')) {
-    return;
-  }
-
-  const autoDownloadButton = document.createElement('div');
-  autoDownloadButton.className = 'kp-auto-download';
-  autoDownloadButton.innerHTML = `
-    <div style="
-      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 14px;
-      margin: 10px 0;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      transition: all 0.3s ease;
-    ">
-      🚀 Auto Download (${downloadCount} downloads)
-    </div>
-  `;
-
-  // Insert after the original download button
-  originalButton.parentNode?.insertBefore(autoDownloadButton, originalButton.nextSibling);
-
-  // Add click handler
-  autoDownloadButton.addEventListener('click', () => {
-    console.log(`🚀 Auto-download clicked for: ${fileName}`);
-    
-    try {
-      // Show starting message
-      showDownloadMessage(`🚀 Starting download: ${fileName}`, 'info');
-      
-      // First, register download metadata with background script
-      const { uploadDate } = getPDFInfoFromModal();
-      chrome.runtime.sendMessage({
-        action: 'registerDownload',
-        fileName: fileName,
-        uploadDate: uploadDate,
-        downloadCount: downloadCount
-      });
-      
-      // Then trigger the original download
-      console.log('📱 Clicking original download button...');
-      originalButton.click();
-      
-      // Send download message to background
-      chrome.runtime.sendMessage({
-        action: 'downloadPDF',
-        fileName: fileName,
-        downloadCount: downloadCount,
-        uploadDate: '', // Will be updated when we have the actual date
-        url: window.location.href
-      }).then((response) => {
-        console.log('📨 Background response:', response);
-        if (response && response.success) {
-          showDownloadMessage(`✅ Download started: ${fileName}`, 'success');
-        } else {
-          showDownloadMessage(`⚠️ Download may have failed: ${fileName}`, 'warning');
-        }
-       }).catch((error) => {
-         console.error('❌ Background message error:', error);
-         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-         showDownloadMessage(`❌ Extension error: ${errorMessage}`, 'warning');
-       });
-      
-    } catch (error) {
-      console.error('❌ Auto-download error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showDownloadMessage(`❌ Download failed: ${errorMessage}`, 'warning');
-    }
-  });
-
-  // Add hover effect
-  autoDownloadButton.addEventListener('mouseenter', () => {
-    (autoDownloadButton.firstElementChild as HTMLElement).style.transform = 'translateY(-2px)';
-  });
-
-  autoDownloadButton.addEventListener('mouseleave', () => {
-    (autoDownloadButton.firstElementChild as HTMLElement).style.transform = 'translateY(0)';
-  });
-}
+// Auto-download button functionality removed - all downloads now happen through popup interface
 
 // Function to show download message
 function showDownloadMessage(message: string, type: 'success' | 'info' | 'warning' = 'info') {
@@ -661,177 +543,18 @@ function showDownloadMessage(message: string, type: 'success' | 'info' | 'warnin
   }, 3000);
 }
 
-// Function to create PDF helper UI for eligible PDFs only
-function createPDFHelper(eligiblePDFs: PDFInfo[]) {
-  if (eligiblePDFs.length === 0) {
-    showDownloadMessage('📄 No PDFs with 5+ downloads found', 'warning');
-    return;
-  }
-  
-  // Remove existing helper if present
-  const existingHelper = document.getElementById('kp-pdf-helper');
-  if (existingHelper) {
-    existingHelper.remove();
-  }
-  
-  const helperDiv = document.createElement('div');
-  helperDiv.id = 'kp-pdf-helper';
-  helperDiv.innerHTML = `
-    <div style="
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-      color: white;
-      padding: 20px;
-      border-radius: 10px;
-      font-family: Arial, sans-serif;
-      font-size: 14px;
-      z-index: 10000;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      max-width: 380px;
-      max-height: 500px;
-      overflow-y: auto;
-    ">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <strong>✅ Eligible PDFs: ${eligiblePDFs.length}</strong>
-        <button id="kp-close-helper" style="
-          background: rgba(255,255,255,0.2);
-          border: none;
-          color: white;
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          cursor: pointer;
-          font-size: 12px;
-        ">×</button>
-      </div>
-      <div style="font-size: 11px; opacity: 0.9; margin-bottom: 15px;">
-        PDFs with 5+ downloads - Click to open and auto-download
-      </div>
-      <div id="kp-pdf-list" style="margin-bottom: 15px;">
-        ${eligiblePDFs.map((pdfInfo, index) => {
-          const shortName = pdfInfo.fileName.length > 30 ? pdfInfo.fileName.substring(0, 30) + '...' : pdfInfo.fileName;
-          return `
-            <div style="
-              padding: 10px;
-              margin: 8px 0;
-              background: rgba(255,255,255,0.1);
-              border-radius: 5px;
-              font-size: 12px;
-              cursor: pointer;
-              transition: all 0.3s ease;
-              border-left: 3px solid #fff;
-            " class="kp-pdf-item" data-index="${index}">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${pdfInfo.fileName}">
-                  📄 ${shortName}
-                </span>
-                <span style="
-                  background: rgba(255,255,255,0.2);
-                  padding: 2px 6px;
-                  border-radius: 10px;
-                  font-size: 10px;
-                  margin-left: 8px;
-                ">
-                  ${pdfInfo.downloadCount}x
-                </span>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-      <div style="text-align: center; font-size: 11px; opacity: 0.8;">
-        Knowledge Planet Helper - Auto Download Ready
-      </div>
-    </div>
-  `;
-  
-  document.body.appendChild(helperDiv);
-  
-  // Add event listeners
-  const closeBtn = document.getElementById('kp-close-helper');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      helperDiv.remove();
-    });
-  }
-  
-  // Add PDF item click listeners
-  const pdfItemElements = document.querySelectorAll('.kp-pdf-item');
-  pdfItemElements.forEach((item, index) => {
-    item.addEventListener('click', () => {
-      // Trigger click on the actual PDF item
-      eligiblePDFs[index].element.click();
-      
-      // Close the helper
-      helperDiv.remove();
-      
-      // Wait for modal to open and then handle it
-      setTimeout(handlePDFModal, 500);
-    });
-    
-    // Add hover effect
-    item.addEventListener('mouseenter', () => {
-      (item as HTMLElement).style.background = 'rgba(255,255,255,0.2)';
-      (item as HTMLElement).style.transform = 'translateY(-2px)';
-    });
-    
-    item.addEventListener('mouseleave', () => {
-      (item as HTMLElement).style.background = 'rgba(255,255,255,0.1)';
-      (item as HTMLElement).style.transform = 'translateY(0)';
-    });
-  });
-}
 
-// Function to scan for eligible PDFs and show helper
-async function scanForPDFs() {
-  console.log('🔍 Starting PDF scan for eligible downloads...');
-  
-  const eligiblePDFs = await scanAllPDFs();
-  
-  if (eligiblePDFs.length > 0) {
-    console.log(`✅ Found ${eligiblePDFs.length} eligible PDFs for auto-download`);
-    createPDFHelper(eligiblePDFs);
-    showDownloadMessage(`✅ Found ${eligiblePDFs.length} PDFs ready for auto-download`, 'success');
-  } else {
-    console.log('❌ No eligible PDFs found (need 5+ downloads)');
-    showDownloadMessage('📄 No PDFs with 5+ downloads found on this page', 'warning');
-  }
-}
 
-// Function to observe for modal changes
-function observeModalChanges() {
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      if (mutation.type === 'childList') {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as Element;
-            // Check if a PDF preview modal was added
-            if (element.matches && element.matches('app-file-preview')) {
-              setTimeout(handlePDFModal, 100);
-            } else if (element.querySelector && element.querySelector('app-file-preview')) {
-              setTimeout(handlePDFModal, 100);
-            }
-          }
-        });
-      }
-    });
-  });
-  
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-}
+
+
+
 
 // Initialize when page loads
 function initialize() {
-  // Only observe for PDF modal changes, don't auto-scan
-  observeModalChanges();
+  // Modal observation disabled to prevent duplicate downloads
+  // All downloads now happen through popup interface only
   
-  console.log('📋 Knowledge Planet Helper initialized. Click "Scan Current Page" to find PDFs.');
+  console.log('📋 Knowledge Planet Helper initialized. Use popup to scan and download PDFs.');
 }
 
 // Initialize when page loads
@@ -844,8 +567,8 @@ if (document.readyState === 'loading') {
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'scanPDFs') {
-    scanForPDFs();
-    sendResponse({ status: 'PDF scan completed!' });
+    console.log('📄 PDF scan disabled - use popup instead');
+    sendResponse({ status: 'PDF scan disabled - use popup instead!' });
   } else if (request.action === 'scanPDFsWithResults') {
     // Perform scan and return results with download counts
     scanAllPDFsForPopup().then((results) => {
@@ -902,6 +625,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           // Get PDF info from the modal
           const { fileName, uploadDate, downloadCount } = getPDFInfoFromModal();
           
+          // Check if this download is already in progress
+          const downloadKey = `${fileName}_${uploadDate}_${downloadCount}`;
+          if (ongoingDownloads.has(downloadKey)) {
+            console.log(`⚠️ Download already in progress, skipping: ${fileName}`);
+            return;
+          }
+          
+          // Mark as ongoing
+          ongoingDownloads.add(downloadKey);
+          
           // Register download metadata
           chrome.runtime.sendMessage({
             action: 'registerDownload',
@@ -915,6 +648,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (downloadButton) {
             downloadButton.click();
           }
+          
+          // Clear from ongoing after a delay
+          setTimeout(() => {
+            ongoingDownloads.delete(downloadKey);
+          }, 5000); // 5 second cooldown
         }
       }, 1000);
     }
@@ -928,47 +666,4 @@ chrome.runtime.sendMessage({
   url: window.location.href 
 });
 
-// Function to create download button for PDF item
-function createAutoDownloadButton(pdfInfo: PDFInfo): HTMLElement {
-  const autoDownloadBtn = document.createElement('button');
-  autoDownloadBtn.className = 'auto-download-btn';
-  autoDownloadBtn.innerHTML = '⬇️ Auto Download';
-  autoDownloadBtn.style.cssText = `
-    background: #4CAF50;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    margin: 5px 0;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    width: 100%;
-  `;
-  
-  autoDownloadBtn.onclick = async (e) => {
-    e.stopPropagation();
-    console.log(`🔽 Auto-downloading PDF: ${pdfInfo.fileName}`);
-    
-    // Click the PDF to open modal
-    pdfInfo.element.click();
-    
-    // Wait for modal to load
-    await waitForModalContent();
-    
-    // Find and click download button
-    const downloadButton = document.querySelector('app-file-preview .download') as HTMLElement;
-    if (downloadButton) {
-      downloadButton.click();
-      showDownloadMessage(`✅ Downloaded: ${pdfInfo.fileName}`, 'success');
-      
-      // Close the modal
-      setTimeout(() => {
-        closeModal();
-      }, 500);
-    } else {
-      showDownloadMessage(`❌ Could not find download button for: ${pdfInfo.fileName}`, 'warning');
-    }
-  };
-  
-  return autoDownloadBtn;
-} 
+ 

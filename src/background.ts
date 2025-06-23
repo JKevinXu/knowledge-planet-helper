@@ -85,12 +85,8 @@ chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
     const originalFilename = downloadItem.filename || '';
     console.log(`📄 Knowledge Planet download detected: ${originalFilename}`);
     
-    // Check if this download was already processed (prevent duplicates)
-    const downloadKey = `${originalFilename}_${downloadItem.url}`;
-    if (processedDownloads.has(downloadKey)) {
-      console.log(`⚠️ Duplicate download detected, skipping: ${originalFilename}`);
-      return false; // Let browser handle with original filename
-    }
+    // Note: Duplicate prevention now happens at registration phase
+    // This section only handles filename formatting for legitimate downloads
     
     // Try to find matching pending download using hash-based matching only
     console.log(`🔍 Looking for hash match among ${pendingDownloads.size} pending downloads`);
@@ -104,8 +100,7 @@ chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
       if (hash === expectedHash) {
         console.log(`🎯 Found exact hash match: ${hash} for "${metadata.fileName}"`);
         
-        // Mark this download as processed
-        processedDownloads.add(downloadKey);
+        // Hash was already marked as processed during registration
         
         // Create new filename with upload date and download count at the start
         const fileExtension = originalFilename.split('.').pop() || 'pdf';
@@ -153,6 +148,16 @@ function handleRegisterDownload(request: any, sender: chrome.runtime.MessageSend
   
   // Create hash-based key for reliable matching
   const hashKey = createDownloadHash(fileName, downloadCount, uploadDate);
+  
+  // CHECK FOR DUPLICATES EARLY - before download starts
+  if (processedDownloads.has(hashKey)) {
+    console.log(`⚠️ Duplicate download detected at registration, skipping: ${fileName}`);
+    sendResponse({ success: false, message: 'Duplicate download prevented' });
+    return;
+  }
+  
+  // Mark as processed immediately to prevent race conditions
+  processedDownloads.add(hashKey);
   
   // Store metadata with hash key
   const metadata = {
