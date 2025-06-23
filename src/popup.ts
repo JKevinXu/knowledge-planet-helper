@@ -292,36 +292,90 @@ document.addEventListener('DOMContentLoaded', function() {
     if (selectedPDFs.size === 0) return;
     
     const selectedPDFList = Array.from(selectedPDFs).map(index => scannedPDFs[index]);
-    showMessage(`📦 Starting batch download of ${selectedPDFList.length} PDFs...`, 'success');
     
-    let downloadedCount = 0;
-    for (const pdf of selectedPDFList) {
+    // Debug: Log selected PDFs to identify duplicates
+    console.log(`📦 Selected PDF indices:`, Array.from(selectedPDFs));
+    console.log(`📦 Selected PDF list:`, selectedPDFList.map(pdf => `"${pdf.fileName}" (index: ${pdf.index})`));
+    
+    // Remove duplicates by filename to prevent same PDF being downloaded twice
+    const uniquePDFList = selectedPDFList.filter((pdf, index, array) => {
+      const firstOccurrence = array.findIndex(p => p.fileName === pdf.fileName);
+      if (firstOccurrence !== index) {
+        console.warn(`🚫 Skipping duplicate PDF: "${pdf.fileName}" (index: ${pdf.index})`);
+        return false;
+      }
+      return true;
+    });
+    
+    if (uniquePDFList.length !== selectedPDFList.length) {
+      console.log(`📋 Filtered ${selectedPDFList.length - uniquePDFList.length} duplicate PDFs`);
+      showMessage(`📋 Removed ${selectedPDFList.length - uniquePDFList.length} duplicate(s), downloading ${uniquePDFList.length} unique PDFs`, 'success');
+    } else {
+      showMessage(`📦 Starting batch download of ${uniquePDFList.length} PDFs...`, 'success');
+    }
+    
+    let successCount = 0;
+    let failureCount = 0;
+    
+    for (let i = 0; i < uniquePDFList.length; i++) {
+      const pdf = uniquePDFList[i];
       try {
-        await new Promise<void>((resolve) => {
+        await new Promise<void>((resolve, reject) => {
           chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const currentTab = tabs[0];
             if (currentTab?.id) {
+              // Send download message and wait for response
               chrome.tabs.sendMessage(currentTab.id, { 
                 action: 'downloadPDF', 
                 pdfIndex: pdf.index,
                 expectedFileName: pdf.fileName
+              }, (response) => {
+                if (chrome.runtime.lastError) {
+                  console.error('Message sending error:', chrome.runtime.lastError);
+                  failureCount++;
+                  showMessage(`❌ Failed to send download request for: ${pdf.fileName}`, 'warning');
+                  reject(chrome.runtime.lastError);
+                } else if (response?.status) {
+                  successCount++;
+                                     showMessage(`📄 Initiated ${i + 1}/${uniquePDFList.length}: ${pdf.fileName}`, 'success');
+                  resolve();
+                } else {
+                  failureCount++;
+                  showMessage(`⚠️ No response for: ${pdf.fileName}`, 'warning');
+                  resolve(); // Continue with next download
+                }
               });
-              downloadedCount++;
-              showMessage(`📄 Downloaded ${downloadedCount}/${selectedPDFList.length}: ${pdf.fileName}`, 'success');
               
-              // Wait a bit between downloads
-              setTimeout(resolve, 2000);
+              // Timeout fallback
+              setTimeout(() => {
+                console.warn(`Download timeout for: ${pdf.fileName}`);
+                resolve();
+              }, 8000);
             } else {
-              resolve();
+              failureCount++;
+              showMessage(`❌ No active tab found`, 'warning');
+              reject(new Error('No active tab'));
             }
           });
         });
+        
+                 // Wait longer between downloads to prevent conflicts
+         if (i < uniquePDFList.length - 1) {
+           await new Promise(resolve => setTimeout(resolve, 3000));
+         }
+        
       } catch (error) {
         console.error('Error downloading PDF:', pdf.fileName, error);
+        failureCount++;
       }
     }
     
-    showMessage(`✅ Batch download completed! Downloaded ${downloadedCount} PDFs`, 'success');
+    // Final status message
+    if (failureCount === 0) {
+      showMessage(`✅ Batch download completed! Successfully initiated ${successCount} downloads`, 'success');
+    } else {
+      showMessage(`⚠️ Batch completed: ${successCount} successful, ${failureCount} failed`, 'warning');
+    }
     
     // Clear selections
     selectedPDFs.clear();

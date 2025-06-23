@@ -591,12 +591,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }));
     sendResponse({ pdfs: pdfData });
   } else if (request.action === 'downloadPDF') {
+    console.log(`📥 Download request received for: "${request.expectedFileName}" (index: ${request.pdfIndex})`);
+    
     const allPDFs = detectPDFFiles();
     let targetElement: HTMLElement | undefined = allPDFs[request.pdfIndex];
     
     // Verify filename matches to prevent race condition
     if (targetElement && request.expectedFileName) {
       const actualFileName = targetElement.querySelector('.file-name')?.textContent?.trim();
+      
+      console.log(`🔍 Verifying PDF: Expected="${request.expectedFileName}", Actual="${actualFileName}"`);
       
       if (actualFileName !== request.expectedFileName) {
         console.warn(`⚠️ PDF order changed! Expected: "${request.expectedFileName}", Got: "${actualFileName}"`);
@@ -611,6 +615,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } else {
           console.error(`❌ Could not find PDF with filename: "${request.expectedFileName}"`);
         }
+      } else {
+        console.log(`✅ PDF filename matches expected: "${request.expectedFileName}"`);
       }
     }
     
@@ -625,15 +631,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           // Get PDF info from the modal
           const { fileName, uploadDate, downloadCount } = getPDFInfoFromModal();
           
-          // Check if this download is already in progress
-          const downloadKey = `${fileName}_${uploadDate}_${downloadCount}`;
-          if (ongoingDownloads.has(downloadKey)) {
+          // Check if this exact same download is already in progress (use more specific key)
+          const downloadKey = `${fileName}_${uploadDate}_${downloadCount}_${Date.now()}`;
+          const generalKey = `${fileName}_${uploadDate}_${downloadCount}`;
+          
+          if (ongoingDownloads.has(generalKey)) {
             console.log(`⚠️ Download already in progress, skipping: ${fileName}`);
             return;
           }
           
-          // Mark as ongoing
-          ongoingDownloads.add(downloadKey);
+          // Mark as ongoing with general key to prevent true duplicates
+          ongoingDownloads.add(generalKey);
           
           // Register download metadata
           chrome.runtime.sendMessage({
@@ -651,8 +659,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           
           // Clear from ongoing after a delay
           setTimeout(() => {
-            ongoingDownloads.delete(downloadKey);
-          }, 5000); // 5 second cooldown
+            ongoingDownloads.delete(generalKey);
+          }, 8000); // 8 second cooldown to match popup timeout
         }
       }, 1000);
     }
