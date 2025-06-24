@@ -6,6 +6,197 @@ console.log('Knowledge Planet Helper: Content script loaded! 🎯');
 // Track ongoing downloads to prevent duplicates
 let ongoingDownloads: Set<string> = new Set();
 
+// Sequential download queue system
+interface DownloadTask {
+  pdfIndex: number;
+  expectedFileName: string;
+  downloadCount: number;
+  retryCount?: number;
+}
+
+class DownloadQueue {
+  private queue: DownloadTask[] = [];
+  private isProcessing = false;
+  private maxRetries = 2;
+  private downloadDelay = 3000; // 3 seconds between downloads
+
+  add(task: DownloadTask) {
+    console.log(`📥 Adding to download queue: "${task.expectedFileName}" (${task.downloadCount} downloads)`);
+    this.queue.push({ ...task, retryCount: 0 });
+    this.process();
+  }
+
+  private async process() {
+    if (this.isProcessing || this.queue.length === 0) {
+      return;
+    }
+
+    this.isProcessing = true;
+    console.log(`🔄 Processing download queue (${this.queue.length} items remaining)`);
+
+    while (this.queue.length > 0) {
+      const task = this.queue.shift()!;
+      const success = await this.downloadSinglePDF(task);
+      
+      if (!success && task.retryCount! < this.maxRetries) {
+        // Retry failed download
+        task.retryCount = (task.retryCount || 0) + 1;
+        console.log(`🔄 Retrying download (${task.retryCount}/${this.maxRetries}): "${task.expectedFileName}"`);
+        this.queue.unshift(task); // Add back to front of queue
+        await this.delay(1000); // Short delay before retry
+      } else if (!success) {
+        console.error(`❌ Failed to download after ${this.maxRetries} retries: "${task.expectedFileName}"`);
+        // Send failure notification
+        chrome.runtime.sendMessage({
+          action: 'downloadFailed',
+          fileName: task.expectedFileName,
+          reason: 'Max retries exceeded'
+        });
+      }
+
+      // Delay between downloads to prevent overwhelming the system
+      if (this.queue.length > 0) {
+        console.log(`⏱️ Waiting ${this.downloadDelay}ms before next download...`);
+        await this.delay(this.downloadDelay);
+      }
+    }
+
+    this.isProcessing = false;
+    console.log('✅ Download queue processing complete');
+  }
+
+  private async downloadSinglePDF(task: DownloadTask): Promise<boolean> {
+    try {
+      console.log(`📥 Sequential download: "${task.expectedFileName}" (index: ${task.pdfIndex})`);
+      
+      const allPDFs = detectPDFFiles();
+      let targetElement: HTMLElement | undefined = allPDFs[task.pdfIndex];
+      
+      // Verify filename matches to prevent race condition
+      if (targetElement && task.expectedFileName) {
+        const actualFileName = targetElement.querySelector('.file-name')?.textContent?.trim();
+        
+        if (actualFileName !== task.expectedFileName) {
+          console.warn(`⚠️ PDF order changed! Expected: "${task.expectedFileName}", Got: "${actualFileName}"`);
+          
+          // Find correct PDF by filename
+          targetElement = allPDFs.find(pdf => 
+            pdf.querySelector('.file-name')?.textContent?.trim() === task.expectedFileName
+          );
+          
+          if (!targetElement) {
+            console.error(`❌ Could not find PDF with filename: "${task.expectedFileName}"`);
+            return false;
+          }
+        }
+      }
+
+      if (!targetElement) {
+        console.error(`❌ No target element found for PDF: "${task.expectedFileName}"`);
+        return false;
+      }
+
+      // Check if already downloading
+      const downloadKey = `${task.expectedFileName}_${task.downloadCount}`;
+      if (ongoingDownloads.has(downloadKey)) {
+        console.log(`⚠️ Download already in progress, skipping: ${task.expectedFileName}`);
+        return true; // Consider this a success to avoid retry
+      }
+
+      // Mark as ongoing
+      ongoingDownloads.add(downloadKey);
+
+      try {
+        // Click the PDF element
+        console.log(`📱 Clicking PDF element: "${task.expectedFileName}"`);
+        targetElement.click();
+        
+        // Wait for modal to open
+        await this.delay(2000);
+        const modalLoaded = await waitForModalContent();
+        
+        if (!modalLoaded) {
+          console.error(`❌ Modal failed to load for: "${task.expectedFileName}"`);
+          return false;
+        }
+
+        // Get PDF info from the modal to verify
+        const { fileName, uploadDate, downloadCount } = getPDFInfoFromModal();
+        
+        if (fileName !== task.expectedFileName) {
+          console.error(`❌ Modal filename mismatch! Expected: "${task.expectedFileName}", Got: "${fileName}"`);
+          await closeModal();
+          return false;
+        }
+
+        // Register download metadata
+        chrome.runtime.sendMessage({
+          action: 'registerDownload',
+          fileName: fileName,
+          uploadDate: uploadDate,
+          downloadCount: downloadCount
+        });
+
+        // Click download button
+        const downloadButton = document.querySelector('app-file-preview .download') as HTMLElement;
+        if (!downloadButton) {
+          console.error(`❌ Download button not found for: "${task.expectedFileName}"`);
+          await closeModal();
+          return false;
+        }
+
+        console.log(`⬇️ Clicking download button for: "${task.expectedFileName}"`);
+        downloadButton.click();
+
+        // Wait for download to start
+        await this.delay(1000);
+
+        // Close modal
+        await closeModal();
+        await waitForModalToClose();
+
+        console.log(`✅ Successfully downloaded: "${task.expectedFileName}"`);
+        
+        // Send success notification
+        chrome.runtime.sendMessage({
+          action: 'downloadSuccess',
+          fileName: task.expectedFileName,
+          downloadCount: task.downloadCount
+        });
+
+        return true;
+
+      } finally {
+        // Always remove from ongoing downloads
+        setTimeout(() => {
+          ongoingDownloads.delete(downloadKey);
+        }, 2000);
+      }
+
+    } catch (error) {
+      console.error(`❌ Error downloading "${task.expectedFileName}":`, error);
+      return false;
+    }
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  getQueueLength(): number {
+    return this.queue.length;
+  }
+
+  clear() {
+    this.queue = [];
+    this.isProcessing = false;
+    console.log('🧹 Download queue cleared');
+  }
+}
+
+// Global download queue instance
+const downloadQueue = new DownloadQueue();
+
 // Interface for PDF info
 interface PDFInfo {
   element: HTMLElement;
@@ -334,8 +525,6 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
   });
 }
 
-
-
 // Function to scan all PDFs and return results for popup
 async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], eligible: number}> {
   const allPDFs = detectPDFFiles();
@@ -543,12 +732,6 @@ function showDownloadMessage(message: string, type: 'success' | 'info' | 'warnin
   }, 3000);
 }
 
-
-
-
-
-
-
 // Initialize when page loads
 function initialize() {
   // Modal observation disabled to prevent duplicate downloads
@@ -593,78 +776,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'downloadPDF') {
     console.log(`📥 Download request received for: "${request.expectedFileName}" (index: ${request.pdfIndex})`);
     
-    const allPDFs = detectPDFFiles();
-    let targetElement: HTMLElement | undefined = allPDFs[request.pdfIndex];
+    // Add to download queue for sequential processing
+    downloadQueue.add({
+      pdfIndex: request.pdfIndex,
+      expectedFileName: request.expectedFileName,
+      downloadCount: request.downloadCount || 0
+    });
     
-    // Verify filename matches to prevent race condition
-    if (targetElement && request.expectedFileName) {
-      const actualFileName = targetElement.querySelector('.file-name')?.textContent?.trim();
-      
-      console.log(`🔍 Verifying PDF: Expected="${request.expectedFileName}", Actual="${actualFileName}"`);
-      
-      if (actualFileName !== request.expectedFileName) {
-        console.warn(`⚠️ PDF order changed! Expected: "${request.expectedFileName}", Got: "${actualFileName}"`);
-        
-        // Find correct PDF by filename
-        targetElement = allPDFs.find(pdf => 
-          pdf.querySelector('.file-name')?.textContent?.trim() === request.expectedFileName
-        );
-        
-        if (targetElement) {
-          console.log(`✅ Found correct PDF by filename: "${request.expectedFileName}"`);
-        } else {
-          console.error(`❌ Could not find PDF with filename: "${request.expectedFileName}"`);
-        }
-      } else {
-        console.log(`✅ PDF filename matches expected: "${request.expectedFileName}"`);
+    sendResponse({ 
+      status: 'PDF added to download queue',
+      queueLength: downloadQueue.getQueueLength()
+    });
+  } else if (request.action === 'downloadMultiplePDFs') {
+    console.log(`📥 Bulk download request received for ${request.pdfs.length} PDFs`);
+    
+    // Clear any existing queue first
+    downloadQueue.clear();
+    
+    // Add all eligible PDFs to the queue
+    request.pdfs.forEach((pdf: any) => {
+      if (pdf.downloadCount >= 5) {
+        downloadQueue.add({
+          pdfIndex: pdf.index,
+          expectedFileName: pdf.fileName,
+          downloadCount: pdf.downloadCount
+        });
       }
-    }
+    });
     
-    if (targetElement) {
-      // Click the verified element
-      targetElement.click();
-      
-      // Wait for modal to open, then register metadata and trigger download
-      setTimeout(async () => {
-        const modalLoaded = await waitForModalContent();
-        if (modalLoaded) {
-          // Get PDF info from the modal
-          const { fileName, uploadDate, downloadCount } = getPDFInfoFromModal();
-          
-          // Check if this exact same download is already in progress (use more specific key)
-          const downloadKey = `${fileName}_${uploadDate}_${downloadCount}_${Date.now()}`;
-          const generalKey = `${fileName}_${uploadDate}_${downloadCount}`;
-          
-          if (ongoingDownloads.has(generalKey)) {
-            console.log(`⚠️ Download already in progress, skipping: ${fileName}`);
-            return;
-          }
-          
-          // Mark as ongoing with general key to prevent true duplicates
-          ongoingDownloads.add(generalKey);
-          
-          // Register download metadata
-          chrome.runtime.sendMessage({
-            action: 'registerDownload',
-            fileName: fileName,
-            uploadDate: uploadDate,
-            downloadCount: downloadCount
-          });
-          
-          // Then trigger the download
-          const downloadButton = document.querySelector('app-file-preview .download') as HTMLElement;
-          if (downloadButton) {
-            downloadButton.click();
-          }
-          
-          // Clear from ongoing after a delay
-          setTimeout(() => {
-            ongoingDownloads.delete(generalKey);
-          }, 8000); // 8 second cooldown to match popup timeout
-        }
-      }, 1000);
-    }
-    sendResponse({ status: 'PDF download triggered' });
+    sendResponse({ 
+      status: `${downloadQueue.getQueueLength()} PDFs added to download queue`,
+      queueLength: downloadQueue.getQueueLength()
+    });
+  } else if (request.action === 'clearDownloadQueue') {
+    downloadQueue.clear();
+    sendResponse({ status: 'Download queue cleared' });
+  } else if (request.action === 'getQueueStatus') {
+    sendResponse({ 
+      queueLength: downloadQueue.getQueueLength(),
+      isProcessing: downloadQueue.getQueueLength() > 0
+    });
   }
 });
 

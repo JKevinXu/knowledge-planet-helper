@@ -71,6 +71,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log(`📊 Forwarded scan progress to popup: ${request.type} - ${request.scanned}/${request.total}`);
     }
     sendResponse({ message: 'Progress forwarded' });
+  } else if (request.action === 'downloadSuccess') {
+    // Forward download success to popup if connected
+    if (popupPort) {
+      popupPort.postMessage(request);
+      console.log(`✅ Forwarded download success to popup: ${request.fileName}`);
+    }
+    sendResponse({ message: 'Success forwarded' });
+  } else if (request.action === 'downloadFailed') {
+    // Forward download failure to popup if connected
+    if (popupPort) {
+      popupPort.postMessage(request);
+      console.log(`❌ Forwarded download failure to popup: ${request.fileName} - ${request.reason}`);
+    }
+    sendResponse({ message: 'Failure forwarded' });
   }
   
   return true; // Keep the message channel open for async responses
