@@ -5,11 +5,13 @@
   "scripts": {
     "build": "webpack --mode production",
     "dev": "webpack --mode development --watch",
-    "clean": "rm -rf dist/*"
+    "clean": "rm -rf dist/*",
+    "icons": "node generate-icons.js"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
     "copy-webpack-plugin": "^12.0.2",
+    "sharp": "^0.34.2",
     "ts-loader": "^9.5.1",
     "typescript": "^5.4.5",
     "webpack": "^5.91.0",

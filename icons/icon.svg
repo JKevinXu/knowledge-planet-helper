@@ -3,19 +3,18 @@
   <rect x="0" y="0" width="128" height="128" rx="20" fill="#667eea"/>
   
   <!-- PDF Document -->
-  <rect x="32" y="20" width="44" height="56" rx="4" fill="#ffffff" stroke="none"/>
+  <rect x="20" y="15" width="88" height="70" rx="6" fill="#ffffff" stroke="none"/>
   
   <!-- PDF text -->
-  <text x="54" y="42" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#dc3545" text-anchor="middle">PDF</text>
+  <text x="64" y="60" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#dc3545" text-anchor="middle">PDF</text>
   
   <!-- Simple document lines -->
-  <rect x="38" y="48" width="30" height="2" fill="#e9ecef" rx="1"/>
-  <rect x="38" y="54" width="24" height="2" fill="#e9ecef" rx="1"/>
-  <rect x="38" y="60" width="28" height="2" fill="#e9ecef" rx="1"/>
+  <rect x="30" y="70" width="40" height="2" fill="#e9ecef" rx="1"/>
+  <rect x="30" y="76" width="32" height="2" fill="#e9ecef" rx="1"/>
   
   <!-- Download arrow -->
-  <polygon points="54,85 46,95 50,95 50,105 58,105 58,95 62,95" fill="#ffffff"/>
+  <polygon points="64,95 56,105 60,105 60,115 68,115 68,105 72,105" fill="#ffffff"/>
   
   <!-- Download line -->
-  <rect x="40" y="110" width="28" height="3" rx="1.5" fill="#ffffff"/>
+  <rect x="50" y="120" width="28" height="3" rx="1.5" fill="#ffffff"/>
 </svg> 
