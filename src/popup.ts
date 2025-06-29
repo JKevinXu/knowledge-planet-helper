@@ -19,10 +19,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (message.action === 'scanProgress') {
       handleScanProgress(message);
     } else if (message.action === 'downloadSuccess') {
-      showMessage(`✅ Downloaded: ${message.fileName}`, 'success');
+      showMessage(`✅ COMPLETED: ${message.fileName}`, 'success');
       loadDownloadStats(); // Refresh stats after successful download
     } else if (message.action === 'downloadFailed') {
-      showMessage(`❌ Failed: ${message.fileName} - ${message.reason}`, 'error');
+      showMessage(`❌ FAILED: ${message.fileName} - ${message.reason}`, 'error');
     }
   });
 
@@ -242,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Disable the button temporarily
     target.setAttribute('disabled', 'true');
-    target.textContent = '⏳';
+    target.textContent = '🔄';
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const currentTab = tabs[0];
@@ -260,12 +260,9 @@ document.addEventListener('DOMContentLoaded', function() {
           
           if (chrome.runtime.lastError) {
             console.error('Download message error:', chrome.runtime.lastError);
-            showMessage(`❌ Failed to download: ${pdf.fileName}`, 'error');
+            showMessage(`❌ Failed to start download: ${pdf.fileName}`, 'error');
           } else if (response?.status) {
-            console.log(`✅ Download queued:`, response.status);
-            showMessage(`📄 Added to queue: ${pdf.fileName}`, 'success');
-          } else {
-            showMessage(`⚠️ Unexpected response for: ${pdf.fileName}`, 'warning');
+            console.log(`🔄 Download queued:`, response.status);
           }
         });
       } else {
@@ -337,9 +334,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (uniquePDFList.length !== selectedPDFList.length) {
       console.log(`📋 Filtered ${selectedPDFList.length - uniquePDFList.length} duplicate PDFs`);
-      showMessage(`📋 Removed ${selectedPDFList.length - uniquePDFList.length} duplicate(s), downloading ${uniquePDFList.length} unique PDFs`, 'success');
-    } else {
-      showMessage(`📦 Starting batch download of ${uniquePDFList.length} PDFs...`, 'success');
     }
     
     let successCount = 0;
@@ -349,15 +343,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const batchDownloadBtn = document.getElementById('download-selected-btn') as HTMLButtonElement;
     if (batchDownloadBtn) {
       batchDownloadBtn.disabled = true;
-      batchDownloadBtn.textContent = 'Processing...';
+      batchDownloadBtn.textContent = 'Queueing...';
     }
     
     for (let i = 0; i < uniquePDFList.length; i++) {
       const pdf = uniquePDFList[i];
       console.log(`\n📦 Processing ${i + 1}/${uniquePDFList.length}: "${pdf.fileName}"`);
-      
-      // Update progress message
-      showMessage(`🔄 Processing ${i + 1}/${uniquePDFList.length}: ${pdf.fileName.substring(0, 30)}${pdf.fileName.length > 30 ? '...' : ''}`, 'success');
       
       try {
         await new Promise<void>((resolve, reject) => {
@@ -375,17 +366,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (chrome.runtime.lastError) {
                   console.error('Message sending error:', chrome.runtime.lastError);
                   failureCount++;
-                  showMessage(`❌ Failed to send download request for: ${pdf.fileName}`, 'warning');
                   reject(chrome.runtime.lastError);
                 } else if (response?.status) {
                   successCount++;
-                  console.log(`✅ Download initiated successfully for: "${pdf.fileName}"`);
-                  showMessage(`📄 Initiated ${i + 1}/${uniquePDFList.length}: ${pdf.fileName}`, 'success');
+                  console.log(`🔄 Download queued successfully for: "${pdf.fileName}"`);
                   resolve();
                 } else {
                   failureCount++;
                   console.warn(`⚠️ No response for: "${pdf.fileName}"`);
-                  showMessage(`⚠️ No response for: ${pdf.fileName}`, 'warning');
                   resolve(); // Continue with next download
                 }
               });
@@ -394,12 +382,10 @@ document.addEventListener('DOMContentLoaded', function() {
               setTimeout(() => {
                 console.warn(`⏰ Download timeout for: "${pdf.fileName}"`);
                 failureCount++;
-                showMessage(`⏰ Timeout for: ${pdf.fileName}`, 'warning');
                 resolve();
               }, 10000); // Increased timeout to 10 seconds
             } else {
               failureCount++;
-              showMessage(`❌ No active tab found`, 'warning');
               reject(new Error('No active tab'));
             }
           });
@@ -420,14 +406,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Re-enable the batch download button
     if (batchDownloadBtn) {
       batchDownloadBtn.disabled = false;
-      batchDownloadBtn.textContent = 'Download Selected';
-    }
-    
-    // Final status message
-    if (failureCount === 0) {
-      showMessage(`✅ Batch download completed! Successfully initiated ${successCount} downloads`, 'success');
-    } else {
-      showMessage(`⚠️ Batch completed: ${successCount} successful, ${failureCount} failed`, 'warning');
+      batchDownloadBtn.textContent = '⬇️ Download';
     }
     
     // Clear selections
