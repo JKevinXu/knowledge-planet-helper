@@ -26,8 +26,16 @@ module.exports = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        { from: 'popup.html', to: 'popup.html' }
+        { from: 'popup.html', to: 'popup.html' },
+        { from: 'manifest.json', to: 'manifest.json' },
+        { from: 'icons', to: 'icons' },
+        { from: 'src/popup-styles.css', to: 'popup-styles.css' }
       ]
     })
-  ]
+  ],
+  optimization: {
+    minimize: true,
+    usedExports: true,
+    sideEffects: false
+  }
 }; 

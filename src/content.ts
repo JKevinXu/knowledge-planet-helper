@@ -748,10 +748,11 @@ if (document.readyState === 'loading') {
 }
 
 // Listen for messages from background script
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'scanPDFs') {
     console.log('📄 PDF scan disabled - use popup instead');
     sendResponse({ status: 'PDF scan disabled - use popup instead!' });
+    return false;
   } else if (request.action === 'scanPDFsWithResults') {
     // Perform scan and return results with download counts
     scanAllPDFsForPopup().then((results) => {
@@ -773,6 +774,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       index: index
     }));
     sendResponse({ pdfs: pdfData });
+    return false;
   } else if (request.action === 'downloadPDF') {
     console.log(`📥 Download request received for: "${request.expectedFileName}" (index: ${request.pdfIndex})`);
     
@@ -787,6 +789,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       status: 'PDF added to download queue',
       queueLength: downloadQueue.getQueueLength()
     });
+    return false;
   } else if (request.action === 'downloadMultiplePDFs') {
     console.log(`📥 Bulk download request received for ${request.pdfs.length} PDFs`);
     
@@ -808,14 +811,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       status: `${downloadQueue.getQueueLength()} PDFs added to download queue`,
       queueLength: downloadQueue.getQueueLength()
     });
+    return false;
   } else if (request.action === 'clearDownloadQueue') {
     downloadQueue.clear();
     sendResponse({ status: 'Download queue cleared' });
+    return false;
   } else if (request.action === 'getQueueStatus') {
     sendResponse({ 
       queueLength: downloadQueue.getQueueLength(),
       isProcessing: downloadQueue.getQueueLength() > 0
     });
+    return false;
+  } else {
+    console.log('❓ Unknown action:', request.action);
+    return false;
   }
 });
 

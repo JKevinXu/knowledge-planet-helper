@@ -1,356 +1,347 @@
 /// <reference types="chrome"/>
 
+import { Utils } from './utils';
+import { DownloadMetadata, StorageData, MessageRequest, MessageResponse, CONSTANTS } from './types';
+
 // Background script for Knowledge Planet Helper
-console.log('Knowledge Planet Helper: Background script loaded! 🌟');
+Utils.log('Background script loaded!');
 
-// Listen for extension installation
-chrome.runtime.onInstalled.addListener((details) => {
-  console.log('Extension installed:', details);
-  
-  // Set up initial storage
-  chrome.storage.local.set({
-    installed: true,
-    installDate: new Date().toISOString(),
-    downloadedPDFs: [],
-    downloadStats: {},
-    pdfViews: {}
-  });
-});
+class BackgroundService {
+  private popupPort: chrome.runtime.Port | null = null;
+  private pendingDownloads = new Map<string, DownloadMetadata>();
+  private processedDownloads = new Set<string>();
 
-// Store popup port for scan progress updates
-let popupPort: chrome.runtime.Port | null = null;
 
-// Store pending downloads with their metadata
-let pendingDownloads: Map<string, { fileName: string; uploadDate: string; downloadCount: number }> = new Map();
-
-// Track processed downloads to prevent duplicates
-let processedDownloads: Set<string> = new Set();
-
-// Simple hash function for creating reliable keys
-function createDownloadHash(fileName: string, downloadCount: number, uploadDate: string): string {
-  const input = `${fileName.trim()}_${downloadCount}_${uploadDate.trim()}`;
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    const char = input.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+  constructor() {
+    this.initializeExtension();
+    this.setupEventListeners();
+    this.startCleanupInterval();
   }
-  return Math.abs(hash).toString(16);
-}
 
-// Listen for popup connection
-chrome.runtime.onConnect.addListener((port) => {
-  if (port.name === 'popup') {
-    popupPort = port;
-    console.log('📱 Popup connected for scan progress updates');
-    
-    port.onDisconnect.addListener(() => {
-      popupPort = null;
-      console.log('📱 Popup disconnected');
-    });
-  }
-});
-
-// Listen for messages from content script or popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Message received in background:', request);
-  
-  if (request.action === 'downloadPDF') {
-    handlePDFDownload(request, sender, sendResponse);
-  } else if (request.action === 'registerDownload') {
-    handleRegisterDownload(request, sender, sendResponse);
-  } else if (request.action === 'contentScriptLoaded') {
-    console.log('📄 Content script loaded on:', request.url);
-    sendResponse({ message: 'Background script acknowledged' });
-  } else if (request.action === 'trackPDFView') {
-    handlePDFView(request, sender, sendResponse);
-  } else if (request.action === 'scanProgress') {
-    // Forward scan progress to popup if connected
-    if (popupPort) {
-      popupPort.postMessage(request);
-      console.log(`📊 Forwarded scan progress to popup: ${request.type} - ${request.scanned}/${request.total}`);
-    }
-    sendResponse({ message: 'Progress forwarded' });
-  } else if (request.action === 'downloadSuccess') {
-    // Forward download success to popup if connected
-    if (popupPort) {
-      popupPort.postMessage(request);
-      console.log(`✅ Forwarded download success to popup: ${request.fileName}`);
-    }
-    sendResponse({ message: 'Success forwarded' });
-  } else if (request.action === 'downloadFailed') {
-    // Forward download failure to popup if connected
-    if (popupPort) {
-      popupPort.postMessage(request);
-      console.log(`❌ Forwarded download failure to popup: ${request.fileName} - ${request.reason}`);
-    }
-    sendResponse({ message: 'Failure forwarded' });
-  }
-  
-  return true; // Keep the message channel open for async responses
-});
-
-// Listen for download filename determination to rename files with upload date
-chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
-  console.log('📥 Download filename determining:', downloadItem);
-  
-  // Check if this is from a Knowledge Planet domain
-  if (downloadItem.url && downloadItem.url.includes('zsxq.com')) {
-    const originalFilename = downloadItem.filename || '';
-    console.log(`📄 Knowledge Planet download detected: ${originalFilename}`);
-    
-    // Note: Duplicate prevention now happens at registration phase
-    // This section only handles filename formatting for legitimate downloads
-    
-    // Try to find matching pending download using hash-based matching only
-    console.log(`🔍 Looking for hash match among ${pendingDownloads.size} pending downloads`);
-    console.log(`📋 Available hashes:`, Array.from(pendingDownloads.keys()));
-    
-    // Find exact hash match by recreating hash from metadata
-    for (const [hash, metadata] of pendingDownloads.entries()) {
-      // Try to recreate the hash from the metadata
-      const expectedHash = createDownloadHash(metadata.fileName, metadata.downloadCount, metadata.uploadDate);
-      
-      if (hash === expectedHash) {
-        console.log(`🎯 Found exact hash match: ${hash} for "${metadata.fileName}"`);
-        
-        // Hash was already marked as processed during registration
-        
-        // Create new filename with upload date and download count at the start
-        const fileExtension = originalFilename.split('.').pop() || 'pdf';
-        const baseFileName = metadata.fileName.replace(/\.[^/.]+$/, ''); // Remove extension
-        const uploadDate = metadata.uploadDate.split(' ')[0]; // Extract only the date part (YYYY-MM-DD)
-        const downloadCount = metadata.downloadCount;
-        const newFileName = `${uploadDate}_${downloadCount}downloads_${baseFileName}.${fileExtension}`;
-        
-        console.log(`📝 Renaming download: ${originalFilename} → ${newFileName}`);
-        
-        // Suggest the new filename
-        suggest({ filename: newFileName });
-        
-        // Remove from pending downloads
-        pendingDownloads.delete(hash);
-        return true; // Indicate we handled the filename
-      }
-    }
-    
-    console.warn(`❌ No hash match found for "${originalFilename}"`);
-    console.log(`📋 Available metadata:`, Array.from(pendingDownloads.values()).map(m => `${m.fileName} (${createDownloadHash(m.fileName, m.downloadCount, m.uploadDate)})`));
-  }
-  
-  // If no metadata found, use original filename
-  return false;
-});
-
-// Clean up old pending downloads and processed downloads periodically
-setInterval(() => {
-  if (pendingDownloads.size > 0) {
-    console.log(`🧹 Cleaning up ${pendingDownloads.size} pending downloads`);
-    pendingDownloads.clear();
-  }
-  if (processedDownloads.size > 0) {
-    console.log(`🧹 Cleaning up ${processedDownloads.size} processed downloads`);
-    processedDownloads.clear();
-  }
-}, 60000); // Clean up every minute
-
-// Function to register download metadata for filename modification
-function handleRegisterDownload(request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) {
-  const { fileName, uploadDate, downloadCount } = request;
-  
-  console.log(`📝 Registering download metadata: ${fileName} (${uploadDate})`);
-  
-  // Create hash-based key for reliable matching
-  const hashKey = createDownloadHash(fileName, downloadCount, uploadDate);
-  
-  // CHECK FOR DUPLICATES EARLY - before download starts
-  if (processedDownloads.has(hashKey)) {
-    console.log(`⚠️ Duplicate download detected at registration, skipping: ${fileName}`);
-    sendResponse({ success: false, message: 'Duplicate download prevented' });
-    return;
-  }
-  
-  // Mark as processed immediately to prevent race conditions
-  processedDownloads.add(hashKey);
-  
-  // Store metadata with hash key
-  const metadata = {
-    fileName,
-    uploadDate,
-    downloadCount
-  };
-  
-  pendingDownloads.set(hashKey, metadata);
-  
-  console.log(`✅ Download metadata registered with hash: ${hashKey} for "${fileName}"`);
-  sendResponse({ success: true, message: 'Download metadata registered' });
-}
-
-// Function to handle PDF view tracking
-async function handlePDFView(request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) {
-  const { fileName, downloadCount, url } = request;
-  
-  console.log(`👁️ PDF viewed: ${fileName} (${downloadCount} total downloads)`);
-  
-  try {
-    // Get current view stats
-    const result = await chrome.storage.local.get(['pdfViews', 'downloadStats']);
-    const pdfViews = result.pdfViews || {};
-    const downloadStats = result.downloadStats || {};
-    
-    // Track this view
-    const pdfKey = fileName.toLowerCase();
-    pdfViews[pdfKey] = {
-      fileName,
-      lastViewed: new Date().toISOString(),
-      actualDownloadCount: downloadCount,
-      url
+  private async initializeExtension(): Promise<void> {
+    const initialData: StorageData = {
+      installed: true,
+      installDate: new Date().toISOString(),
+      downloadedPDFs: [],
+      downloadStats: {},
+      pdfViews: {}
     };
     
-    // Update our internal download stats with the actual count
-    downloadStats[pdfKey] = downloadCount;
+    try {
+      await Utils.setStorage(initialData);
+      Utils.log('Extension initialized successfully');
+    } catch (error) {
+      Utils.error('Failed to initialize extension:', error);
+    }
+  }
+
+  private setupEventListeners(): void {
+    chrome.runtime.onInstalled.addListener(this.handleInstalled.bind(this));
+    chrome.runtime.onConnect.addListener(this.handleConnection.bind(this));
+    chrome.runtime.onMessage.addListener(this.handleMessage.bind(this));
+    chrome.downloads.onDeterminingFilename.addListener(this.handleFilenameChange.bind(this));
+    chrome.tabs.onUpdated.addListener(this.handleTabUpdate.bind(this));
+    chrome.contextMenus.onClicked.addListener(this.handleContextMenu.bind(this));
+  }
+
+  private startCleanupInterval(): void {
+    setInterval(() => {
+      this.cleanup();
+    }, CONSTANTS.CLEANUP_INTERVAL);
+  }
+
+  private handleInstalled(details: chrome.runtime.InstalledDetails): void {
+    Utils.log('Extension installed:', details);
+    this.setupContextMenu();
+  }
+
+  private handleConnection(port: chrome.runtime.Port): void {
+    if (port.name === 'popup') {
+      this.popupPort = port;
+      Utils.log('Popup connected for scan progress updates');
+      
+      port.onDisconnect.addListener(() => {
+        this.popupPort = null;
+        Utils.log('Popup disconnected');
+      });
+    }
+  }
+
+  private handleMessage(
+    request: MessageRequest, 
+    sender: chrome.runtime.MessageSender, 
+    sendResponse: (response?: MessageResponse) => void
+  ): boolean {
+    Utils.log('Message received:', request.action);
     
-    // Save updated data
-    await chrome.storage.local.set({
-      pdfViews,
-      downloadStats
-    });
+    const handlers: Record<string, Function> = {
+      downloadPDF: this.handlePDFDownload.bind(this),
+      registerDownload: this.handleRegisterDownload.bind(this),
+      trackPDFView: this.handlePDFView.bind(this),
+      contentScriptLoaded: this.handleContentScriptLoaded.bind(this),
+      scanProgress: this.forwardToPopup.bind(this),
+      downloadSuccess: this.forwardToPopup.bind(this),
+      downloadFailed: this.forwardToPopup.bind(this)
+    };
+
+    const handler = handlers[request.action];
+    if (handler) {
+      handler(request, sender, sendResponse);
+    } else {
+      Utils.warn('Unknown action:', request.action);
+      sendResponse({ success: false, message: 'Unknown action' });
+    }
     
-    sendResponse({ 
-      success: true, 
-      message: 'PDF view tracked',
-      eligible: downloadCount >= 5
-    });
+    return true; // Keep message channel open for async responses
+  }
+
+  private forwardToPopup(request: MessageRequest): void {
+    if (this.popupPort) {
+      this.popupPort.postMessage(request);
+      Utils.log(`Forwarded ${request.action} to popup`);
+    }
+  }
+
+  private handleFilenameChange(
+    downloadItem: chrome.downloads.DownloadItem,
+    suggest: (suggestion?: chrome.downloads.DownloadFilenameSuggestion) => void
+  ): boolean {
+    Utils.log('Download filename determining:', downloadItem.filename);
     
-  } catch (error) {
-    console.error('Error tracking PDF view:', error);
-    sendResponse({ 
-      success: false, 
-      message: 'Error tracking view',
-      error: error instanceof Error ? error.message : 'Unknown error'
+    // Check if this is from a Knowledge Planet domain
+    if (!downloadItem.url?.includes('zsxq.com')) {
+      return false;
+    }
+
+    const originalFilename = downloadItem.filename || '';
+    Utils.log(`Knowledge Planet download detected: ${originalFilename}`);
+    
+    // Find exact hash match by recreating hash from metadata
+    for (const [hash, metadata] of this.pendingDownloads.entries()) {
+      const expectedHash = Utils.createDownloadHash(metadata.fileName, metadata.downloadCount, metadata.uploadDate);
+      
+      if (hash === expectedHash) {
+        Utils.log(`Found exact hash match: ${hash} for "${metadata.fileName}"`);
+        
+        const newFileName = Utils.formatFileName(
+          metadata.fileName,
+          metadata.uploadDate,
+          metadata.downloadCount
+        );
+        
+        Utils.log(`Renaming download: ${originalFilename} → ${newFileName}`);
+        
+        suggest({ filename: newFileName });
+        this.pendingDownloads.delete(hash);
+        return true;
+      }
+    }
+    
+    Utils.warn(`No hash match found for "${originalFilename}"`);
+    return false;
+  }
+
+  private cleanup(): void {
+    if (this.pendingDownloads.size > 0) {
+      Utils.log(`Cleaning up ${this.pendingDownloads.size} pending downloads`);
+      this.pendingDownloads.clear();
+    }
+    if (this.processedDownloads.size > 0) {
+      Utils.log(`Cleaning up ${this.processedDownloads.size} processed downloads`);
+      this.processedDownloads.clear();
+    }
+  }
+
+  private setupContextMenu(): void {
+    chrome.contextMenus.create({
+      id: 'scanPDFs',
+      title: 'Scan for PDFs',
+      contexts: ['page'],
+      documentUrlPatterns: ['https://wx.zsxq.com/*']
     });
   }
-}
 
-// Function to handle PDF download requests
-async function handlePDFDownload(request: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) {
-  const { fileName, downloadCount, url } = request;
-  
-  console.log(`📄 Processing PDF download request: ${fileName} (${downloadCount} downloads)`);
-  
-  try {
-    // Get current download stats
-    const result = await chrome.storage.local.get(['downloadStats', 'downloadedPDFs']);
-    const downloadStats = result.downloadStats || {};
-    const downloadedPDFs = result.downloadedPDFs || [];
+  private handleContextMenu(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): void {
+    if (info.menuItemId === 'scanPDFs' && tab?.id) {
+      chrome.tabs.sendMessage(tab.id, { action: 'scanPDFs' });
+    }
+  }
+
+  private handleTabUpdate(_tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): void {
+    if (changeInfo.status === 'complete' && tab.url?.includes('wx.zsxq.com')) {
+      Utils.log('Knowledge Planet page loaded, extension ready:', tab.url);
+    }
+  }
+
+  private handleContentScriptLoaded(
+    request: MessageRequest,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response: MessageResponse) => void
+  ): void {
+    Utils.log('Content script loaded on:', request.url);
+    sendResponse({ success: true, message: 'Background script acknowledged' });
+  }
+
+  private handleRegisterDownload(
+    request: MessageRequest, 
+    _sender: chrome.runtime.MessageSender, 
+    sendResponse: (response: MessageResponse) => void
+  ): void {
+    const { fileName, uploadDate, downloadCount } = request;
     
-    // Use the actual download count from the modal
-    const pdfKey = fileName.toLowerCase();
-    const actualCount = downloadCount || downloadStats[pdfKey] || 0;
+    Utils.log(`Registering download metadata: ${fileName} (${uploadDate})`);
     
-    console.log(`📊 Actual download count for "${fileName}": ${actualCount}`);
+    const hashKey = Utils.createDownloadHash(fileName, downloadCount, uploadDate);
     
-    // Check if this PDF meets download criteria (5+ downloads)
-    if (actualCount >= 5) {
-      console.log(`✅ PDF "${fileName}" has ${actualCount} downloads, proceeding with download`);
+    // Check for duplicates early - before download starts
+    if (this.processedDownloads.has(hashKey)) {
+      Utils.warn(`Duplicate download detected, skipping: ${fileName}`);
+      sendResponse({ success: false, message: 'Duplicate download prevented' });
+      return;
+    }
+    
+    // Mark as processed immediately to prevent race conditions
+    this.processedDownloads.add(hashKey);
+    
+    // Store metadata with hash key
+    const metadata: DownloadMetadata = {
+      fileName,
+      uploadDate,
+      downloadCount
+    };
+    
+    this.pendingDownloads.set(hashKey, metadata);
+    
+    Utils.log(`Download metadata registered with hash: ${hashKey} for "${fileName}"`);
+    sendResponse({ success: true, message: 'Download metadata registered' });
+  }
+
+  private async handlePDFView(
+    request: MessageRequest,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response: MessageResponse) => void
+  ): Promise<void> {
+    const { fileName, downloadCount, url } = request;
+    
+    Utils.log(`PDF viewed: ${fileName} (${downloadCount} total downloads)`);
+    
+    try {
+      const data = await Utils.getStorage(['pdfViews', 'downloadStats']);
+      const pdfViews = data.pdfViews || {};
+      const downloadStats = data.downloadStats || {};
       
-      // Simulate the download process
-      await simulateDownload(fileName, url);
-      
-      // Add to downloaded PDFs list if not already there
-      const pdfRecord = {
+      const pdfKey = fileName.toLowerCase();
+      pdfViews[pdfKey] = {
         fileName,
-        url,
-        downloadCount: actualCount,
-        downloadedAt: new Date().toISOString(),
-        method: 'auto-download'
+        lastViewed: new Date().toISOString(),
+        actualDownloadCount: downloadCount,
+        url
       };
       
-      const existingIndex = downloadedPDFs.findIndex((pdf: any) => pdf.fileName === fileName);
-      if (existingIndex >= 0) {
-        downloadedPDFs[existingIndex] = pdfRecord;
-      } else {
-        downloadedPDFs.push(pdfRecord);
-      }
+      downloadStats[pdfKey] = downloadCount;
       
-      // Update stats
-      downloadStats[pdfKey] = actualCount;
-      
-      // Save updated data
-      await chrome.storage.local.set({
-        downloadStats,
-        downloadedPDFs
-      });
+      await Utils.setStorage({ pdfViews, downloadStats });
       
       sendResponse({ 
         success: true, 
-        message: `PDF download completed! (${actualCount} downloads)`,
-        downloadCount: actualCount
+        message: 'PDF view tracked',
+        eligible: downloadCount >= CONSTANTS.MIN_DOWNLOAD_COUNT
       });
-    } else {
-      console.log(`⏳ PDF "${fileName}" has only ${actualCount} downloads, need 5+ to auto-download`);
       
-      // Update stats with actual count
-      downloadStats[pdfKey] = actualCount;
-      await chrome.storage.local.set({ downloadStats });
-      
+    } catch (error) {
+      Utils.error('Error tracking PDF view:', error);
       sendResponse({ 
         success: false, 
-        message: `PDF needs ${5 - actualCount} more downloads to auto-download`,
-        downloadCount: actualCount,
-        required: 5
+        message: 'Error tracking view',
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
+  }
+
+  private async handlePDFDownload(
+    request: MessageRequest,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response: MessageResponse) => void
+  ): Promise<void> {
+    const { fileName, downloadCount, url } = request;
     
-  } catch (error) {
-    console.error('Error handling PDF download:', error);
-    sendResponse({ 
-      success: false, 
-      message: 'Error processing download request',
-      error: error instanceof Error ? error.message : 'Unknown error'
+    Utils.log(`Processing PDF download request: ${fileName} (${downloadCount} downloads)`);
+    
+    try {
+      const data = await Utils.getStorage(['downloadStats', 'downloadedPDFs']);
+      const downloadStats = data.downloadStats || {};
+      const downloadedPDFs = data.downloadedPDFs || [];
+      
+      const pdfKey = fileName.toLowerCase();
+      const actualCount = downloadCount || downloadStats[pdfKey] || 0;
+      
+      Utils.log(`Actual download count for "${fileName}": ${actualCount}`);
+      
+      if (actualCount >= CONSTANTS.MIN_DOWNLOAD_COUNT) {
+        Utils.log(`PDF "${fileName}" has ${actualCount} downloads, proceeding with download`);
+        
+        await this.simulateDownload(fileName, url);
+        
+        const pdfRecord = {
+          fileName,
+          url,
+          downloadCount: actualCount,
+          downloadedAt: new Date().toISOString(),
+          method: 'auto-download'
+        };
+        
+        const existingIndex = downloadedPDFs.findIndex((pdf: any) => pdf.fileName === fileName);
+        if (existingIndex >= 0) {
+          downloadedPDFs[existingIndex] = pdfRecord;
+        } else {
+          downloadedPDFs.push(pdfRecord);
+        }
+        
+        downloadStats[pdfKey] = actualCount;
+        
+        await Utils.setStorage({ downloadStats, downloadedPDFs });
+        
+        sendResponse({ 
+          success: true, 
+          message: `PDF download completed! (${actualCount} downloads)`,
+          downloadCount: actualCount
+        });
+      } else {
+        Utils.log(`PDF "${fileName}" has only ${actualCount} downloads, need ${CONSTANTS.MIN_DOWNLOAD_COUNT}+ to auto-download`);
+        
+        downloadStats[pdfKey] = actualCount;
+        await Utils.setStorage({ downloadStats });
+        
+        sendResponse({ 
+          success: false, 
+          message: `PDF needs ${CONSTANTS.MIN_DOWNLOAD_COUNT - actualCount} more downloads to auto-download`,
+          downloadCount: actualCount,
+          required: CONSTANTS.MIN_DOWNLOAD_COUNT
+        });
+      }
+      
+    } catch (error) {
+      Utils.error('Error handling PDF download:', error);
+      sendResponse({ 
+        success: false, 
+        message: 'Error processing download request',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  private async simulateDownload(fileName: string, url: string): Promise<void> {
+    Utils.log(`Initiating download of: ${fileName} from ${url}`);
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        Utils.log(`Download process completed: ${fileName}`);
+        resolve();
+      }, 1000);
     });
   }
 }
 
-// Function to simulate PDF download (placeholder for actual download logic)
-async function simulateDownload(fileName: string, url: string): Promise<void> {
-  console.log(`🚀 Initiating download of: ${fileName} from ${url}`);
-  
-  // TODO: Implement actual download logic
-  // This would typically involve:
-  // 1. Finding the actual PDF download URL/endpoint
-  // 2. Using chrome.downloads.download() API
-  // 3. Handling download completion/failure
-  
-  // For now, just log the action
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      console.log(`✅ Download process completed: ${fileName}`);
-      resolve();
-    }, 1000);
-  });
-}
+// Initialize the background service
+new BackgroundService();
 
-// Listen for tab updates (removed auto-scan, now only manual via popup)
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url?.includes('wx.zsxq.com')) {
-    console.log('📄 Knowledge Planet page loaded, extension ready. Use popup to scan for PDFs:', tab.url);
-    // Auto-scan removed - user must click "Scan Current Page" button
-  }
-});
-
-// Add context menu for manual PDF scanning (optional)
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'scanPDFs',
-    title: 'Scan for PDFs',
-    contexts: ['page'],
-    documentUrlPatterns: ['https://wx.zsxq.com/*']
-  });
-});
-
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'scanPDFs' && tab?.id) {
-    chrome.tabs.sendMessage(tab.id, { action: 'scanPDFs' });
-  }
-}); 

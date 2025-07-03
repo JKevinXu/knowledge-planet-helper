@@ -1,0 +1,354 @@
+/* Knowledge Planet Helper - Popup Styles */
+
+:root {
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --bg-gradient: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+  --border-color: #dee2e6;
+  --text-primary: #333;
+  --text-secondary: #495057;
+  --text-muted: #6c757d;
+  --success-bg: #d4edda;
+  --success-border: #c3e6cb;
+  --success-text: #155724;
+  --warning-bg: #fff3cd;
+  --warning-border: #ffeaa7;
+  --warning-text: #856404;
+  --error-bg: #f8d7da;
+  --error-border: #f5c6cb;
+  --error-text: #721c24;
+  --shadow-light: 0 1px 3px rgba(0,0,0,0.1);
+  --shadow-medium: 0 2px 4px rgba(102, 126, 234, 0.3);
+  --shadow-strong: 0 4px 8px rgba(102, 126, 234, 0.4);
+}
+
+body {
+  width: 500px;
+  height: 600px;
+  padding: 0;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-gradient);
+  color: var(--text-primary);
+  box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 600px;
+}
+
+.sidebar-header {
+  background: var(--primary-gradient);
+  color: white;
+  padding: 20px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+.sidebar-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.sidebar-header p {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255,255,255,0.15);
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+
+.sidebar-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.action-section {
+  margin-bottom: 15px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.section-title::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  background: #667eea;
+  margin-right: 8px;
+  border-radius: 2px;
+}
+
+button {
+  width: 100%;
+  background: var(--primary-gradient);
+  border: none;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-medium);
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-strong);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.secondary-button {
+  background: var(--text-muted);
+  box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+}
+
+.secondary-button:hover:not(:disabled) {
+  box-shadow: 0 4px 8px rgba(108, 117, 125, 0.4);
+}
+
+#message {
+  background: #f8f9fa;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-height: 20px;
+  margin-top: 10px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.message-success {
+  background: var(--success-bg) !important;
+  border-color: var(--success-border) !important;
+  color: var(--success-text) !important;
+}
+
+.message-warning {
+  background: var(--warning-bg) !important;
+  border-color: var(--warning-border) !important;
+  color: var(--warning-text) !important;
+}
+
+.message-error {
+  background: var(--error-bg) !important;
+  border-color: var(--error-border) !important;
+  color: var(--error-text) !important;
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-active { background: #28a745; }
+.status-inactive { background: #dc3545; }
+
+.pdf-list {
+  max-height: 500px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: white;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.empty-subtext {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.pdf-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f3f4;
+  transition: background-color 0.2s;
+}
+
+.pdf-item:last-child {
+  border-bottom: none;
+}
+
+.pdf-item:hover {
+  background-color: #f8f9fa;
+}
+
+.pdf-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #212529;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 8px;
+  min-width: 0;
+}
+
+.pdf-downloads {
+  background: #e9ecef;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pdf-downloads.eligible {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.pdf-date {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.pdf-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 0;
+  width: auto;
+}
+
+.pdf-btn-download {
+  background: #28a745;
+  color: white;
+  padding: 2px 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pdf-btn-download:hover:not(:disabled) {
+  background: #218838;
+}
+
+.batch-controls {
+  margin-top: 10px;
+  padding: 8px;
+  border-top: 1px solid var(--border-color);
+  background: #f8f9fa;
+  border-radius: 0 0 6px 6px;
+}
+
+.pdf-checkbox {
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.pdf-checkbox:checked {
+  accent-color: #667eea;
+}
+
+/* Scrollbar styling */
+.pdf-list::-webkit-scrollbar,
+.sidebar-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pdf-list::-webkit-scrollbar-track,
+.sidebar-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.pdf-list::-webkit-scrollbar-thumb,
+.sidebar-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.pdf-list::-webkit-scrollbar-thumb:hover,
+.sidebar-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Loading states */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Responsive adjustments */
+@media (max-height: 500px) {
+  body {
+    height: 400px;
+  }
+  
+  .sidebar {
+    height: 400px;
+  }
+  
+  .pdf-list {
+    max-height: 250px;
+  }
+}

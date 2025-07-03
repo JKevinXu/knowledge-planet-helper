@@ -110,15 +110,15 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Load download statistics
-  async function loadDownloadStats() {
+    async function loadDownloadStats() {
     try {
-      const result = await chrome.storage.local.get(['downloadStats', 'downloadedPDFs']);
-      const downloadStats = result.downloadStats || {};
-      const downloadedPDFs = result.downloadedPDFs || [];
+      // const result = await chrome.storage.local.get(['downloadStats', 'downloadedPDFs']);
+      // const downloadStats = result.downloadStats || {};
+      // const downloadedPDFs = result.downloadedPDFs || [];
       
       // Update stat cards
-      const totalTracked = Object.keys(downloadStats).length;
-      const eligibleCount = Object.values(downloadStats).filter((count: any) => count >= 5).length;
+      // const totalTracked = Object.keys(downloadStats).length;
+      // const eligibleCount = Object.values(downloadStats).filter((count: any) => count >= 5).length;
       
       
       
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    const pdfListHtml = eligiblePDFs.map((pdf, index) => {
+    const pdfListHtml = eligiblePDFs.map((pdf, _index) => {
       const shortName = pdf.fileName.length > 65 ? pdf.fileName.substring(0, 65) + '...' : pdf.fileName;
       const uploadDate = pdf.uploadDate || '';
       const isSelected = selectedPDFs.has(pdf.index); // Use original index from scannedPDFs
