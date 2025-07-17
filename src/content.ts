@@ -472,6 +472,12 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
 
 // Function to scan all PDFs and return results for popup
 async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], eligible: number}> {
+  console.log('🔍 Starting popup scan with content loading...');
+  
+  // First scroll down to load all content
+  await scrollToLoadAllContent();
+  console.log('✅ Finished scrolling, now scanning PDFs...');
+  
   const allPDFs = detectPDFFiles();
   
   if (allPDFs.length === 0) {
@@ -490,25 +496,29 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
     
     if (pdfInfo) {
-      scannedPDFs.push({
-        fileName: pdfInfo.fileName,
-        downloadCount: pdfInfo.downloadCount,
-        uploadDate: pdfInfo.uploadDate,
-        index: i
-      });
-      
-      if (pdfInfo.downloadCount >= 5) {
-        eligibleCount++;
+      // Only include PDFs uploaded today
+      if (isToday(pdfInfo.uploadDate)) {
+        scannedPDFs.push({
+          fileName: pdfInfo.fileName,
+          downloadCount: pdfInfo.downloadCount,
+          uploadDate: pdfInfo.uploadDate,
+          index: i
+        });
+        
+        if (pdfInfo.downloadCount >= 5) {
+          eligibleCount++;
+        }
+        console.log(`✅ PDF "${pdfInfo.fileName}" uploaded today (${pdfInfo.uploadDate}) - ${pdfInfo.downloadCount} downloads`);
+      } else {
+        console.log(`⏹️ Stopping scan - found PDF "${pdfInfo.fileName}" not uploaded today (${pdfInfo.uploadDate})`);
+        console.log(`📋 Files are ordered by date, so all remaining files will be older`);
+        break; // Stop scanning since files are ordered by date
       }
     } else {
-      // Add PDF with 0 downloads if scan failed
+      // Add PDF with 0 downloads if scan failed, but only if uploaded today
       const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
-      scannedPDFs.push({
-        fileName: fileName,
-        downloadCount: 0,
-        uploadDate: '',
-        index: i
-      });
+      // Note: We can't determine upload date for failed scans, so we'll skip them
+      console.log(`❌ Failed to scan PDF "${fileName}" - skipping`);
     }
     
     // Add delay between scans
@@ -517,7 +527,7 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
     }
   }
   
-  console.log(`🎯 Popup scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible`);
+  console.log(`🎯 Popup scan complete! Found ${scannedPDFs.length} PDFs uploaded today, ${eligibleCount} eligible`);
   
   return { 
     success: true, 
@@ -528,6 +538,12 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
 
 // Function to scan all PDFs and return results for popup with incremental updates
 async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[], eligible: number}> {
+  console.log('🔍 Starting progressive popup scan with content loading...');
+  
+  // First scroll down to load all content
+  await scrollToLoadAllContent();
+  console.log('✅ Finished scrolling, now scanning PDFs...');
+  
   const allPDFs = detectPDFFiles();
   
   if (allPDFs.length === 0) {
@@ -556,25 +572,29 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
     
     if (pdfInfo) {
-      scannedPDFs.push({
-        fileName: pdfInfo.fileName,
-        downloadCount: pdfInfo.downloadCount,
-        uploadDate: pdfInfo.uploadDate,
-        index: i
-      });
-      
-      if (pdfInfo.downloadCount >= 5) {
-        eligibleCount++;
+      // Only include PDFs uploaded today
+      if (isToday(pdfInfo.uploadDate)) {
+        scannedPDFs.push({
+          fileName: pdfInfo.fileName,
+          downloadCount: pdfInfo.downloadCount,
+          uploadDate: pdfInfo.uploadDate,
+          index: i
+        });
+        
+        if (pdfInfo.downloadCount >= 5) {
+          eligibleCount++;
+        }
+        console.log(`✅ PDF "${pdfInfo.fileName}" uploaded today (${pdfInfo.uploadDate}) - ${pdfInfo.downloadCount} downloads`);
+      } else {
+        console.log(`⏹️ Stopping scan - found PDF "${pdfInfo.fileName}" not uploaded today (${pdfInfo.uploadDate})`);
+        console.log(`📋 Files are ordered by date, so all remaining files will be older`);
+        break; // Stop scanning since files are ordered by date
       }
     } else {
-      // Add PDF with 0 downloads if scan failed
+      // Add PDF with 0 downloads if scan failed, but only if uploaded today
       const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
-      scannedPDFs.push({
-        fileName: fileName,
-        downloadCount: 0,
-        uploadDate: '',
-        index: i
-      });
+      // Note: We can't determine upload date for failed scans, so we'll skip them
+      console.log(`❌ Failed to scan PDF "${fileName}" - skipping`);
     }
     
     // Send progress update after each PDF
@@ -604,7 +624,7 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     pdfs: scannedPDFs
   });
   
-  console.log(`🎯 Progressive scan complete! Found ${scannedPDFs.length} PDFs, ${eligibleCount} eligible`);
+  console.log(`🎯 Progressive scan complete! Found ${scannedPDFs.length} PDFs uploaded today, ${eligibleCount} eligible`);
   
   return { 
     success: true, 
@@ -767,5 +787,59 @@ chrome.runtime.sendMessage({
   action: 'contentScriptLoaded', 
   url: window.location.href 
 });
+
+// Function to check if a date string represents today
+function isToday(dateString: string): boolean {
+  if (!dateString) return false;
+  
+  try {
+    // Parse the date string (assuming format like "2025-07-18" or "2025-07-18 00:28")
+    const dateParts = dateString.split(' ')[0].split('-');
+    if (dateParts.length !== 3) return false;
+    
+    const year = parseInt(dateParts[0]);
+    const month = parseInt(dateParts[1]) - 1; // Month is 0-indexed
+    const day = parseInt(dateParts[2]);
+    
+    const uploadDate = new Date(year, month, day);
+    const today = new Date();
+    
+    return uploadDate.getFullYear() === today.getFullYear() &&
+           uploadDate.getMonth() === today.getMonth() &&
+           uploadDate.getDate() === today.getDate();
+  } catch (error) {
+    console.warn('Error parsing date:', dateString, error);
+    return false;
+  }
+}
+
+// Function to scroll down and wait for content to load
+async function scrollToLoadAllContent(): Promise<void> {
+  return new Promise((resolve) => {
+    let lastHeight = document.body.scrollHeight;
+    let scrollAttempts = 0;
+    const maxScrollAttempts = 5;
+    
+    const scrollDown = () => {
+      window.scrollTo(0, document.body.scrollHeight);
+      
+      setTimeout(() => {
+        const newHeight = document.body.scrollHeight;
+        scrollAttempts++;
+        
+        if (newHeight > lastHeight && scrollAttempts < maxScrollAttempts) {
+          lastHeight = newHeight;
+          scrollDown();
+        } else {
+          // Scroll back to top
+          window.scrollTo(0, 0);
+          setTimeout(resolve, 1000); // Wait for any final content to load
+        }
+      }, 2000); // Wait 2 seconds for content to load
+    };
+    
+    scrollDown();
+  });
+}
 
  

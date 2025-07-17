@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const eligibleCount = eligiblePDFs.length;
     const filterNote = `
       <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; color: #6c757d;">
-        ℹ️ Showing only PDFs with 5+ downloads (${eligibleCount} eligible)
+        ℹ️ Showing only today's PDFs with 5+ downloads (${eligibleCount} eligible)
       </div>
     `;
     pdfListElement.insertAdjacentHTML('afterbegin', filterNote);
