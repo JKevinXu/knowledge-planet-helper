@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', function() {
             isScanning = false;
             scanPDFsButton.disabled = false;
             scanPDFsButton.textContent = '🔍 Scan Current Page';
-            showMessage('⚠️ Make sure you\'re on a Knowledge Planet page', 'warning');
+            showMessage('⚠️ No PDF files detected. Please make sure you are viewing a Knowledge Planet file gallery page with PDFs.', 'warning');
           }
         });
       } else {
@@ -134,8 +134,8 @@ document.addEventListener('DOMContentLoaded', function() {
       pdfListElement.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📄</div>
-          <div class="empty-text">No PDFs scanned yet</div>
-          <div class="empty-subtext">Click "Scan Current Page" to find PDFs</div>
+          <div class="empty-text">No PDF files found on this page</div>
+          <div class="empty-subtext">Try navigating to a Knowledge Planet file gallery with PDFs.</div>
         </div>
       `;
       return;
