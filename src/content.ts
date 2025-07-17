@@ -110,25 +110,21 @@ class DownloadQueue {
         // Click the PDF element
         console.log(`📱 Clicking PDF element: "${task.expectedFileName}"`);
         targetElement.click();
-        
-        // Wait for modal to open
-        await this.delay(2000);
+        // Wait for modal to be fully loaded before extracting info
         const modalLoaded = await waitForModalContent();
-        
         if (!modalLoaded) {
           console.error(`❌ Modal failed to load for: "${task.expectedFileName}"`);
           return false;
         }
-
+        // Wait a short time to ensure content is stable
+        await new Promise(resolve => setTimeout(resolve, 200));
         // Get PDF info from the modal to verify
         const { fileName, uploadDate, downloadCount } = getPDFInfoFromModal();
-        
         if (fileName !== task.expectedFileName) {
           console.error(`❌ Modal filename mismatch! Expected: "${task.expectedFileName}", Got: "${fileName}"`);
           await closeModal();
           return false;
         }
-
         // Register download metadata
         chrome.runtime.sendMessage({
           action: 'registerDownload',
@@ -136,7 +132,6 @@ class DownloadQueue {
           uploadDate: uploadDate,
           downloadCount: downloadCount
         });
-
         // Click download button
         const downloadButton = document.querySelector('app-file-preview .download') as HTMLElement;
         if (!downloadButton) {
@@ -144,26 +139,20 @@ class DownloadQueue {
           await closeModal();
           return false;
         }
-
         console.log(`⬇️ Clicking download button for: "${task.expectedFileName}"`);
         downloadButton.click();
-
         // Wait for download to start
         await this.delay(1000);
-
         // Close modal
         await closeModal();
         await waitForModalToClose();
-
         console.log(`✅ Successfully downloaded: "${task.expectedFileName}"`);
-        
         // Send success notification
         chrome.runtime.sendMessage({
           action: 'downloadSuccess',
           fileName: task.expectedFileName,
           downloadCount: task.downloadCount
         });
-
         return true;
 
       } finally {
