@@ -357,65 +357,43 @@ function closeModal(): Promise<void> {
 // Function to wait for modal to be fully loaded
 function waitForModalContent(): Promise<boolean> {
   return new Promise((resolve) => {
-    let attempts = 0;
-          const maxAttempts = 10; // 5 seconds timeout (10 × 500ms)
-    
-    const checkModal = () => {
-      const modal = document.querySelector('app-file-preview');
-      
-      console.log(`🔍 Modal check attempt ${attempts + 1}/${maxAttempts}:`);
-      console.log(`  - Modal exists: ${!!modal}`);
-      
-      if (!modal) {
-        attempts++;
-        if (attempts >= maxAttempts) {
-          console.warn('⚠️ Modal did not appear within timeout');
-          resolve(false);
-        } else {
-          setTimeout(checkModal, 500);
+    const modal = document.querySelector('app-file-preview');
+    if (!modal) {
+      // Wait for modal to appear
+      const observer = new MutationObserver((mutations, obs) => {
+        const modalNow = document.querySelector('app-file-preview');
+        if (modalNow) {
+          obs.disconnect();
+          // Now observe content inside modal
+          observeModalContent(modalNow as HTMLElement, resolve);
         }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    } else {
+      // Modal already exists, observe its content
+      observeModalContent(modal as HTMLElement, resolve);
+    }
+
+    function observeModalContent(modalElem: HTMLElement, done: (result: boolean) => void) {
+      // Check if content is already loaded
+      if (isModalReady(modalElem)) {
+        done(true);
         return;
       }
-      
-      // Modal exists, now check if it has any content
-      const modalHasContent = modal.innerHTML.trim().length > 100; // Basic content check
-      const downloadRecord = modal.querySelector('.download-record');
-      const fileName = modal.querySelector('.file-name');
-      const hasText = modal.textContent && modal.textContent.trim().length > 10;
-      
-      console.log(`  - Modal has content: ${modalHasContent}`);
-      console.log(`  - Download record exists: ${!!downloadRecord}`);
-      console.log(`  - File name exists: ${!!fileName}`);
-      console.log(`  - Has text content: ${hasText}`);
-      
-      // More flexible conditions - modal just needs to have some content
-      if (modalHasContent && hasText) {
-        console.log('✅ Modal content loaded successfully');
-        // Wait a bit more to ensure content is stable
-        setTimeout(() => resolve(true), 500);
-      } else {
-        attempts++;
-        if (attempts >= maxAttempts) {
-          console.warn('⚠️ Modal content did not load within timeout');
-          
-          // Debug: Show what's actually in the DOM
-          const allModals = document.querySelectorAll('[class*="modal"], [class*="preview"], [class*="dialog"], app-file-preview');
-          console.log(`🔍 Found ${allModals.length} potential modal elements:`, allModals);
-          
-          if (modal) {
-            console.log('🔍 Modal HTML (first 1000 chars):', modal.innerHTML.substring(0, 1000));
-            console.log('🔍 Modal text content:', modal.textContent?.substring(0, 500));
-          }
-          
-          // Try to extract info even if not fully loaded
-          resolve(true);
-        } else {
-          setTimeout(checkModal, 500);
+      const contentObserver = new MutationObserver(() => {
+        if (isModalReady(modalElem)) {
+          contentObserver.disconnect();
+          done(true);
         }
-      }
-    };
-    
-    checkModal();
+      });
+      contentObserver.observe(modalElem, { childList: true, subtree: true, characterData: true });
+    }
+    function isModalReady(modalElem: HTMLElement): boolean {
+      const fileName = modalElem.querySelector('.file-name');
+      const downloadRecord = modalElem.querySelector('.download-record');
+      const textContent = modalElem.textContent || '';
+      return !!fileName && !!downloadRecord && textContent.trim().length > 10;
+    }
   });
 }
 
@@ -450,78 +428,56 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
   return new Promise((resolve) => {
     const fileName = pdfElement.querySelector('.file-name')?.textContent?.trim() || '';
     console.log(`🔍 [${pdfIndex + 1}] Scanning PDF: ${fileName}`);
-    
     // Ensure no modal is open before starting
     const existingModal = document.querySelector('app-file-preview');
     if (existingModal) {
       console.log('⚠️ Modal already open, removing first');
       existingModal.remove();
     }
-    
-    // Wait a bit to ensure page is ready
-    setTimeout(async () => {
-      console.log(`📱 [${pdfIndex + 1}] Clicking PDF element...`);
-      
-      // Single click method - most reliable
-      pdfElement.click();
-      
-      // Wait for modal to be fully loaded before extracting info
-      setTimeout(async () => {
-        const modalLoaded = await waitForModalContent();
-        
-        if (modalLoaded) {
-          // Wait additional time to ensure content is stable before extracting
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          console.log(`📋 [${pdfIndex + 1}] Modal content ready, extracting data...`);
-          
-          // Double-check we have the right modal content
-          const modalFileName = document.querySelector('app-file-preview .file-name')?.textContent?.trim();
-          console.log(`📋 [${pdfIndex + 1}] Modal filename: ${modalFileName}`);
-          
-          if (modalFileName === fileName) {
-            const { downloadCount, uploadDate } = getPDFInfoFromModal();
-            
-            console.log(`📊 [${pdfIndex + 1}] PDF: ${fileName} - ${downloadCount} downloads, uploaded: ${uploadDate}`);
-            
-            // Close modal and wait for it to disappear
-            await closeModal();
-            await waitForModalToClose();
-            
-            // Wait extra time between scans
-            setTimeout(() => {
-              // Always return the PDF info with actual download count
-              resolve({
-                element: pdfElement,
-                fileName,
-                downloadCount,
-                uploadDate,
-                index: pdfIndex
-              });
-              console.log(`📊 [${pdfIndex + 1}] PDF "${fileName}" has ${downloadCount} downloads ${downloadCount >= 5 ? '(eligible)' : '(not eligible)'}`);
-            }, 100); // Reduced wait time
-          } else {
-            console.warn(`⚠️ [${pdfIndex + 1}] Modal filename mismatch! Expected: ${fileName}, Got: ${modalFileName}`);
-            
-            await closeModal();
-            await waitForModalToClose();
-            setTimeout(() => resolve(null), 100); // Reduced wait time
-          }
-        } else {
-          console.warn(`⚠️ [${pdfIndex + 1}] Could not load modal for PDF: ${fileName}`);
-          
-          // Try to restore modal visibility if it exists
-          const modal = document.querySelector('app-file-preview') as HTMLElement;
-          if (modal) {
-            modal.style.display = '';
-          }
-          
+    // Click the PDF element
+    pdfElement.click();
+    // Wait for modal to be fully loaded before extracting info
+    waitForModalContent().then(async (modalLoaded) => {
+      if (modalLoaded) {
+        // Wait a short time to ensure content is stable
+        await new Promise(resolve => setTimeout(resolve, 200));
+        console.log(`📋 [${pdfIndex + 1}] Modal content ready, extracting data...`);
+        // Double-check we have the right modal content
+        const modalFileName = document.querySelector('app-file-preview .file-name')?.textContent?.trim();
+        console.log(`📋 [${pdfIndex + 1}] Modal filename: ${modalFileName}`);
+        if (modalFileName === fileName) {
+          const { downloadCount, uploadDate } = getPDFInfoFromModal();
+          console.log(`📊 [${pdfIndex + 1}] PDF: ${fileName} - ${downloadCount} downloads, uploaded: ${uploadDate}`);
+          // Close modal and wait for it to disappear
           await closeModal();
           await waitForModalToClose();
-          setTimeout(() => resolve(null), 100); // Reduced wait time
+          // Always return the PDF info with actual download count
+          resolve({
+            element: pdfElement,
+            fileName,
+            downloadCount,
+            uploadDate,
+            index: pdfIndex
+          });
+          console.log(`📊 [${pdfIndex + 1}] PDF "${fileName}" has ${downloadCount} downloads ${downloadCount >= 5 ? '(eligible)' : '(not eligible)'}`);
+        } else {
+          console.warn(`⚠️ [${pdfIndex + 1}] Modal filename mismatch! Expected: ${fileName}, Got: ${modalFileName}`);
+          await closeModal();
+          await waitForModalToClose();
+          resolve(null);
         }
-      }, 1500); // Further increased timeout for modal to open
-    }, 500); // Increased initial delay before clicking
+      } else {
+        console.warn(`⚠️ [${pdfIndex + 1}] Could not load modal for PDF: ${fileName}`);
+        // Try to restore modal visibility if it exists
+        const modal = document.querySelector('app-file-preview') as HTMLElement;
+        if (modal) {
+          modal.style.display = '';
+        }
+        await closeModal();
+        await waitForModalToClose();
+        resolve(null);
+      }
+    });
   });
 }
 
