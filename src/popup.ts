@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let scannedPDFs: any[] = [];
   let isScanning = false;
   let selectedPDFs: Set<number> = new Set(); // Track selected PDF indices
+  let currentScanDays = 1; // Track current scan range
 
   // Connect to background script for scan progress updates
   const port = chrome.runtime.connect({ name: 'popup' });
@@ -31,7 +32,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Handle scan progress updates
   function handleScanProgress(progress: any) {
-    const { type, total, scanned, eligible, pdfs, currentPdf } = progress;
+    const { type, total, scanned, eligible, pdfs, currentPdf, scanDays } = progress;
+    const scanDescription = scanDays === 1 ? 'today' : `last ${scanDays} days`;
     
     if (type === 'start') {
       isScanning = true;
@@ -39,7 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
       scanPDFsButton.textContent = `🔄 Starting scan...`;
       scannedPDFs = [];
       updatePDFList();
-      showMessage(`🔍 Starting scan of ${total} PDFs...`, 'success');
+      showMessage(`🔍 Starting scan of ${total} PDFs (${scanDescription})...`, 'success');
     } else if (type === 'progress') {
       scanPDFsButton.textContent = `🔄 Scanning ${scanned}/${total}...`;
       scannedPDFs = [...pdfs]; // Update with current results
@@ -55,14 +57,14 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (type === 'complete') {
       isScanning = false;
       scanPDFsButton.disabled = false;
-      scanPDFsButton.textContent = '🔍 Scan Current Page';
+      scanPDFsButton.textContent = '🔍 Scan';
       scannedPDFs = [...pdfs];
       updatePDFList();
       
       // Update final stats
       
       
-      showMessage(`✅ Scan complete! Found ${total} PDFs, ${eligible} eligible for download`, 'success');
+      showMessage(`✅ Scan complete! Found ${eligible} eligible PDFs from ${scanDescription}`, 'success');
       loadDownloadStats(); // Refresh stats
     }
   }
@@ -74,18 +76,26 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
+    // Get selected scan days
+    const scanDaysSelect = document.getElementById('scanDays') as HTMLSelectElement;
+    const scanDays = parseInt(scanDaysSelect.value) || 1;
+    currentScanDays = scanDays; // Store current scan range
+    
     // Send message to active tab to scan for PDFs with progress updates
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const currentTab = tabs[0];
       if (currentTab?.id && currentTab.url?.includes('wx.zsxq.com')) {
         const tabId = currentTab.id as number;
-        // Trigger the progressive scan
-        chrome.tabs.sendMessage(tabId, { action: 'scanPDFsWithProgress' }, (response) => {
+        // Trigger the progressive scan with selected days
+        chrome.tabs.sendMessage(tabId, { 
+          action: 'scanPDFsWithProgress',
+          scanDays: scanDays 
+        }, (response) => {
           // Final response handling (scan completion is handled via progress messages)
           if (!response || !response.success) {
             isScanning = false;
             scanPDFsButton.disabled = false;
-            scanPDFsButton.textContent = '🔍 Scan Current Page';
+            scanPDFsButton.textContent = '🔍 Scan';
             showMessage('⚠️ No PDF files detected. Please make sure you are viewing a Knowledge Planet file gallery page with PDFs.', 'warning');
           }
         });
@@ -193,9 +203,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add note about filtering and batch controls
     const eligibleCount = eligiblePDFs.length;
+    const scanDescription = currentScanDays === 1 ? "today's" : `last ${currentScanDays} days'`;
     const filterNote = `
       <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; color: #6c757d;">
-        ℹ️ Showing only today's PDFs with 5+ downloads (${eligibleCount} eligible)
+        ℹ️ Showing only ${scanDescription} PDFs with 5+ downloads (${eligibleCount} eligible)
       </div>
     `;
     pdfListElement.insertAdjacentHTML('afterbegin', filterNote);

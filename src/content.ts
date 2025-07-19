@@ -471,8 +471,9 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
 }
 
 // Function to scan all PDFs and return results for popup
-async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], eligible: number}> {
-  console.log('🔍 Starting popup scan with content loading...');
+async function scanAllPDFsForPopup(scanDays: number = 1): Promise<{success: boolean, pdfs: any[], eligible: number}> {
+  const scanDescription = scanDays === 1 ? 'today' : `last ${scanDays} days`;
+  console.log(`🔍 Starting popup scan with content loading (${scanDescription})...`);
   
   // First scroll down to load all content
   await scrollToLoadAllContent();
@@ -484,7 +485,7 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
     return { success: false, pdfs: [], eligible: 0 };
   }
   
-  console.log(`🔍 Starting popup scan of ${allPDFs.length} PDFs...`);
+  console.log(`🔍 Starting popup scan of ${allPDFs.length} PDFs (${scanDescription})...`);
   
   const scannedPDFs: any[] = [];
   let eligibleCount = 0;
@@ -496,8 +497,10 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
     
     if (pdfInfo) {
-      // Only include PDFs uploaded today
-      if (isToday(pdfInfo.uploadDate)) {
+      // Include PDFs based on scan range
+      const isInRange = scanDays === 1 ? isToday(pdfInfo.uploadDate) : isWithinLastDays(pdfInfo.uploadDate, scanDays);
+      
+      if (isInRange) {
         scannedPDFs.push({
           fileName: pdfInfo.fileName,
           downloadCount: pdfInfo.downloadCount,
@@ -508,14 +511,14 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
         if (pdfInfo.downloadCount >= 5) {
           eligibleCount++;
         }
-        console.log(`✅ PDF "${pdfInfo.fileName}" uploaded today (${pdfInfo.uploadDate}) - ${pdfInfo.downloadCount} downloads`);
+        console.log(`✅ PDF "${pdfInfo.fileName}" uploaded within ${scanDescription} (${pdfInfo.uploadDate}) - ${pdfInfo.downloadCount} downloads`);
       } else {
-        console.log(`⏹️ Stopping scan - found PDF "${pdfInfo.fileName}" not uploaded today (${pdfInfo.uploadDate})`);
+        console.log(`⏹️ Stopping scan - found PDF "${pdfInfo.fileName}" not within ${scanDescription} (${pdfInfo.uploadDate})`);
         console.log(`📋 Files are ordered by date, so all remaining files will be older`);
         break; // Stop scanning since files are ordered by date
       }
     } else {
-      // Add PDF with 0 downloads if scan failed, but only if uploaded today
+      // Add PDF with 0 downloads if scan failed, but only if uploaded within range
       const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
       // Note: We can't determine upload date for failed scans, so we'll skip them
       console.log(`❌ Failed to scan PDF "${fileName}" - skipping`);
@@ -527,7 +530,7 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
     }
   }
   
-  console.log(`🎯 Popup scan complete! Found ${scannedPDFs.length} PDFs uploaded today, ${eligibleCount} eligible`);
+  console.log(`🎯 Popup scan complete! Found ${scannedPDFs.length} PDFs from ${scanDescription}, ${eligibleCount} eligible`);
   
   return { 
     success: true, 
@@ -537,8 +540,9 @@ async function scanAllPDFsForPopup(): Promise<{success: boolean, pdfs: any[], el
 }
 
 // Function to scan all PDFs and return results for popup with incremental updates
-async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[], eligible: number}> {
-  console.log('🔍 Starting progressive popup scan with content loading...');
+async function scanAllPDFsWithProgress(scanDays: number = 1): Promise<{success: boolean, pdfs: any[], eligible: number}> {
+  const scanDescription = scanDays === 1 ? 'today' : `last ${scanDays} days`;
+  console.log(`🔍 Starting progressive popup scan with content loading (${scanDescription})...`);
   
   // First scroll down to load all content
   await scrollToLoadAllContent();
@@ -550,7 +554,7 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     return { success: false, pdfs: [], eligible: 0 };
   }
   
-  console.log(`🔍 Starting progressive popup scan of ${allPDFs.length} PDFs...`);
+  console.log(`🔍 Starting progressive popup scan of ${allPDFs.length} PDFs (${scanDescription})...`);
   
   const scannedPDFs: any[] = [];
   let eligibleCount = 0;
@@ -562,7 +566,8 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     total: allPDFs.length,
     scanned: 0,
     eligible: 0,
-    pdfs: []
+    pdfs: [],
+    scanDays: scanDays
   });
   
   // Scan all PDFs found on the page
@@ -572,8 +577,10 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
     
     if (pdfInfo) {
-      // Only include PDFs uploaded today
-      if (isToday(pdfInfo.uploadDate)) {
+      // Include PDFs based on scan range
+      const isInRange = scanDays === 1 ? isToday(pdfInfo.uploadDate) : isWithinLastDays(pdfInfo.uploadDate, scanDays);
+      
+      if (isInRange) {
         scannedPDFs.push({
           fileName: pdfInfo.fileName,
           downloadCount: pdfInfo.downloadCount,
@@ -584,14 +591,14 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
         if (pdfInfo.downloadCount >= 5) {
           eligibleCount++;
         }
-        console.log(`✅ PDF "${pdfInfo.fileName}" uploaded today (${pdfInfo.uploadDate}) - ${pdfInfo.downloadCount} downloads`);
+        console.log(`✅ PDF "${pdfInfo.fileName}" uploaded within ${scanDescription} (${pdfInfo.uploadDate}) - ${pdfInfo.downloadCount} downloads`);
       } else {
-        console.log(`⏹️ Stopping scan - found PDF "${pdfInfo.fileName}" not uploaded today (${pdfInfo.uploadDate})`);
+        console.log(`⏹️ Stopping scan - found PDF "${pdfInfo.fileName}" not within ${scanDescription} (${pdfInfo.uploadDate})`);
         console.log(`📋 Files are ordered by date, so all remaining files will be older`);
         break; // Stop scanning since files are ordered by date
       }
     } else {
-      // Add PDF with 0 downloads if scan failed, but only if uploaded today
+      // Add PDF with 0 downloads if scan failed, but only if uploaded within range
       const fileName = allPDFs[i].querySelector('.file-name')?.textContent?.trim() || '';
       // Note: We can't determine upload date for failed scans, so we'll skip them
       console.log(`❌ Failed to scan PDF "${fileName}" - skipping`);
@@ -605,7 +612,8 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
       scanned: i + 1,
       eligible: eligibleCount,
       pdfs: [...scannedPDFs], // Send copy of current results
-      currentPdf: scannedPDFs[scannedPDFs.length - 1]
+      currentPdf: scannedPDFs[scannedPDFs.length - 1],
+      scanDays: scanDays
     });
     
     // Add delay between scans
@@ -621,10 +629,11 @@ async function scanAllPDFsWithProgress(): Promise<{success: boolean, pdfs: any[]
     total: allPDFs.length,
     scanned: allPDFs.length,
     eligible: eligibleCount,
-    pdfs: scannedPDFs
+    pdfs: scannedPDFs,
+    scanDays: scanDays
   });
   
-  console.log(`🎯 Progressive scan complete! Found ${scannedPDFs.length} PDFs uploaded today, ${eligibleCount} eligible`);
+  console.log(`🎯 Progressive scan complete! Found ${scannedPDFs.length} PDFs from ${scanDescription}, ${eligibleCount} eligible`);
   
   return { 
     success: true, 
@@ -717,13 +726,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ status: 'PDF scan disabled - use popup instead!' });
   } else if (request.action === 'scanPDFsWithResults') {
     // Perform scan and return results with download counts
-    scanAllPDFsForPopup().then((results) => {
+    const scanDays = request.scanDays || 1; // Default to today if not specified
+    scanAllPDFsForPopup(scanDays).then((results) => {
       sendResponse(results);
     });
     return true; // Keep the message channel open for async response
   } else if (request.action === 'scanPDFsWithProgress') {
     // Perform progressive scan with real-time updates
-    scanAllPDFsWithProgress().then((results) => {
+    const scanDays = request.scanDays || 1; // Default to today if not specified
+    scanAllPDFsWithProgress(scanDays).then((results) => {
       sendResponse(results);
     });
     return true; // Keep the message channel open for async response
@@ -807,6 +818,37 @@ function isToday(dateString: string): boolean {
     return uploadDate.getFullYear() === today.getFullYear() &&
            uploadDate.getMonth() === today.getMonth() &&
            uploadDate.getDate() === today.getDate();
+  } catch (error) {
+    console.warn('Error parsing date:', dateString, error);
+    return false;
+  }
+}
+
+// Function to check if a date string is within the last N days
+function isWithinLastDays(dateString: string, days: number): boolean {
+  if (!dateString) return false;
+  
+  try {
+    // Parse the date string (assuming format like "2025-07-18" or "2025-07-18 00:28")
+    const dateParts = dateString.split(' ')[0].split('-');
+    if (dateParts.length !== 3) return false;
+    
+    const year = parseInt(dateParts[0]);
+    const month = parseInt(dateParts[1]) - 1; // Month is 0-indexed
+    const day = parseInt(dateParts[2]);
+    
+    const uploadDate = new Date(year, month, day);
+    const today = new Date();
+    
+    // Calculate the date N days ago
+    const daysAgo = new Date(today);
+    daysAgo.setDate(today.getDate() - days + 1); // +1 because we want to include today
+    
+    // Reset time to start of day for accurate comparison
+    uploadDate.setHours(0, 0, 0, 0);
+    daysAgo.setHours(0, 0, 0, 0);
+    
+    return uploadDate >= daysAgo;
   } catch (error) {
     console.warn('Error parsing date:', dateString, error);
     return false;

@@ -301,12 +301,24 @@
   <div class="sidebar">
     <div class="sidebar-content">
       <div class="action-section">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <div class="section-title">Scanned PDFs</div>
+        <div class="section-title">Scan Options</div>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+          <select id="scanDays" style="
+            padding: 4px 8px; 
+            border: 1px solid #dee2e6; 
+            border-radius: 4px; 
+            font-size: 12px; 
+            background: white;
+            flex: 1;
+          ">
+            <option value="1">📅 Today only</option>
+            <option value="3">📅 Last 3 days</option>
+          </select>
           <button id="scanPDFs" style="padding: 6px 12px; font-size: 12px; margin: 0; width: auto;">
             🔍 Scan
           </button>
         </div>
+        <div class="section-title">Scanned PDFs</div>
         <div id="pdfList" class="pdf-list">
           <div class="empty-state">
             <div class="empty-icon">📄</div>
