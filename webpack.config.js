@@ -26,7 +26,19 @@ module.exports = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        { from: 'popup.html', to: 'popup.html' }
+        { from: 'popup.html', to: 'popup.html' },
+        { 
+          from: 'manifest.json', 
+          to: 'manifest.json',
+          transform(content) {
+            // Fix the manifest to point to the correct file paths (remove "dist/" prefix)
+            const manifest = JSON.parse(content.toString());
+            manifest.content_scripts[0].js = ['content.js'];
+            manifest.background.service_worker = 'background.js';
+            return JSON.stringify(manifest, null, 2);
+          }
+        },
+        { from: 'icons', to: 'icons' }
       ]
     })
   ]

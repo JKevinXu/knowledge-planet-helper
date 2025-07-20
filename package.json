@@ -6,7 +6,8 @@
     "build": "webpack --mode production",
     "dev": "webpack --mode development --watch",
     "clean": "rm -rf dist/*",
-    "icons": "node generate-icons.js"
+    "icons": "node generate-icons.js",
+    "package": "npm run clean && npm run build && cd dist && zip -r ../knowledge-planet-helper-extension.zip ."
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
