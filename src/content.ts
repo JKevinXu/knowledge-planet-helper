@@ -480,8 +480,8 @@ async function scanAllPDFsForPopup(scanDays: number = 1, customDate: string | nu
   }
   console.log(`🔍 Starting popup scan with content loading (${scanDescription})...`);
   
-  // First scroll down to load all content
-  await scrollToLoadAllContent();
+  // First scroll down to load all content based on date range
+  await scrollToLoadAllContent(scanDays, customDate);
   console.log('✅ Finished scrolling, now scanning PDFs...');
   
   const allPDFs = detectPDFFiles();
@@ -559,8 +559,8 @@ async function scanAllPDFsWithProgress(scanDays: number = 1, customDate: string 
   }
   console.log(`🔍 Starting progressive popup scan with content loading (${scanDescription})...`);
   
-  // First scroll down to load all content
-  await scrollToLoadAllContent();
+  // First scroll down to load all content based on date range
+  await scrollToLoadAllContent(scanDays, customDate);
   console.log('✅ Finished scrolling, now scanning PDFs...');
   
   const allPDFs = detectPDFFiles();
@@ -913,24 +913,123 @@ function isSinceCustomDate(dateString: string, customDate: string): boolean {
   }
 }
 
-// Function to scroll down and wait for content to load
-async function scrollToLoadAllContent(): Promise<void> {
-  return new Promise((resolve) => {
+// Function to scroll down and wait for content to load based on date range
+async function scrollToLoadAllContent(scanDays: number = 1, customDate: string | null = null): Promise<void> {
+  return new Promise(async (resolve) => {
     let lastHeight = document.body.scrollHeight;
     let scrollAttempts = 0;
-    const maxScrollAttempts = 5;
+    let consecutiveNoNewContent = 0; // Track consecutive scrolls with no new content
+    let foundOldEnoughPDF = false;
+    
+    // Calculate the target date we're looking for
+    let targetDate: Date;
+    if (customDate) {
+      const parts = customDate.split('-');
+      targetDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    } else {
+      targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() - scanDays + 1);
+    }
+    targetDate.setHours(0, 0, 0, 0);
+    
+    console.log(`📜 Dynamic scrolling for "${customDate || (scanDays === 1 ? 'today' : `${scanDays} days`)}"`);
+    console.log(`📅 Will check PDF dates to stop when finding PDFs older than ${targetDate.toISOString().split('T')[0]}`);
     
     const scrollDown = () => {
       window.scrollTo(0, document.body.scrollHeight);
       
-      setTimeout(() => {
+      setTimeout(async () => {
         const newHeight = document.body.scrollHeight;
         scrollAttempts++;
         
-        if (newHeight > lastHeight && scrollAttempts < maxScrollAttempts) {
-          lastHeight = newHeight;
-          scrollDown();
+        // Track if new content was loaded
+        if (newHeight === lastHeight) {
+          consecutiveNoNewContent++;
         } else {
+          consecutiveNoNewContent = 0;
+        }
+        
+        // Check dates of visible PDFs to see if we've scrolled far enough
+        const allPDFs = detectPDFFiles();
+        
+        // Only check dates every 3 scrolls and when we have enough PDFs
+        if (!foundOldEnoughPDF && scrollAttempts % 3 === 0 && allPDFs.length >= 5) {
+          console.log(`🔍 Checking dates of last few PDFs (${allPDFs.length} total PDFs loaded)...`);
+          
+          // Quick scan the last 3 PDFs to check their dates
+          const lastPDFs = allPDFs.slice(-3);
+          let pdfsOutsideRange = 0;
+          
+          for (let i = 0; i < lastPDFs.length; i++) {
+            const pdf = lastPDFs[i];
+            const fileName = pdf.querySelector('.file-name')?.textContent?.trim() || '';
+            console.log(`📄 Quick scanning PDF: ${fileName}`);
+            
+            // Click to open modal
+            pdf.click();
+            
+            // Wait for modal to load
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Get date from modal
+            const modalLoaded = document.querySelector('app-file-preview');
+            if (modalLoaded) {
+              const uploadDateElement = document.querySelector('app-file-preview .upload-date');
+              const uploadDateText = uploadDateElement?.textContent?.trim() || '';
+              
+              if (uploadDateText) {
+                const dateMatch = uploadDateText.match(/(\d{4}-\d{2}-\d{2})/);
+                if (dateMatch) {
+                  const pdfDate = new Date(dateMatch[1]);
+                  pdfDate.setHours(0, 0, 0, 0);
+                  
+                  if (pdfDate < targetDate) {
+                    pdfsOutsideRange++;
+                    console.log(`📅 Found PDF from ${dateMatch[1]} (older than ${targetDate.toISOString().split('T')[0]})`);
+                  } else {
+                    console.log(`✅ PDF from ${dateMatch[1]} is within range`);
+                  }
+                }
+              }
+              
+              // Close modal
+              await closeModal();
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+          }
+          
+          // If all checked PDFs are outside the date range, stop scrolling
+          if (pdfsOutsideRange === lastPDFs.length && pdfsOutsideRange > 0) {
+            console.log(`✅ All ${pdfsOutsideRange} checked PDFs are older than target date`);
+            foundOldEnoughPDF = true;
+          }
+        }
+        
+        // For short date ranges, stop early if no new content loads
+        const stopDueToNoContent = scanDays <= 3 && consecutiveNoNewContent >= 2;
+        
+        // Continue scrolling if:
+        // 1. New content was loaded (height increased)
+        // 2. Haven't found PDFs older than our range
+        // 3. Not stopping due to no new content (for short ranges)
+        const shouldContinue = newHeight > lastHeight && 
+                              !foundOldEnoughPDF && 
+                              !stopDueToNoContent;
+        
+                  if (shouldContinue) {
+            console.log(`📜 Scroll attempt ${scrollAttempts} - Page height: ${newHeight}px`);
+            lastHeight = newHeight;
+            scrollDown();
+          } else {
+            // Log why we stopped
+            if (foundOldEnoughPDF) {
+              console.log(`✅ Stopped scrolling: Found PDFs older than target date`);
+            } else if (stopDueToNoContent) {
+              console.log(`✅ Stopped scrolling: No new content for ${consecutiveNoNewContent} attempts (short date range)`);
+            } else if (newHeight === lastHeight) {
+              console.log(`✅ Stopped scrolling: No more content to load`);
+            }
+          
           // Scroll back to top
           window.scrollTo(0, 0);
           setTimeout(resolve, 1000); // Wait for any final content to load
