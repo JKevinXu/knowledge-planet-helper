@@ -28,15 +28,27 @@ let processedDownloads: Set<string> = new Set();
 
 // Simple hash function for creating reliable keys
 function createDownloadHash(fileName: string, downloadCount: number, uploadDate: string): string {
+  // More robust hash function with better collision resistance using djb2 algorithm
   const input = `${fileName.trim()}_${downloadCount}_${uploadDate.trim()}`;
-  let hash = 0;
+  let hash = 5381; // djb2 hash algorithm initial value
+  
   for (let i = 0; i < input.length; i++) {
-    const char = input.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash = ((hash << 5) + hash) + input.charCodeAt(i); // hash * 33 + char
   }
+  
+  // Convert to positive hex string
   return Math.abs(hash).toString(16);
 }
+
+// Add a secondary verification layer for critical duplicates
+function createSecondaryKey(fileName: string, fileSize?: number): string {
+  // Use file size if available for extra verification
+  const sizeComponent = fileSize ? `_${fileSize}` : '';
+  return `${fileName.toLowerCase().replace(/\s+/g, '_')}${sizeComponent}`;
+}
+
+// Enhanced duplicate detection with multiple verification layers
+let processedFileNames: Set<string> = new Set(); // Additional filename-based tracking
 
 // Listen for popup connection
 chrome.runtime.onConnect.addListener((port) => {
@@ -152,6 +164,10 @@ setInterval(() => {
     console.log(`🧹 Cleaning up ${processedDownloads.size} processed downloads`);
     processedDownloads.clear();
   }
+  if (processedFileNames.size > 0) {
+    console.log(`🧹 Cleaning up ${processedFileNames.size} processed filenames`);
+    processedFileNames.clear();
+  }
 }, 60000); // Clean up every minute
 
 // Function to register download metadata for filename modification
@@ -163,15 +179,24 @@ function handleRegisterDownload(request: any, sender: chrome.runtime.MessageSend
   // Create hash-based key for reliable matching
   const hashKey = createDownloadHash(fileName, downloadCount, uploadDate);
   
-  // CHECK FOR DUPLICATES EARLY - before download starts
+  // CHECK FOR DUPLICATES EARLY - before download starts (multiple layers)
+  const secondaryKey = createSecondaryKey(fileName);
+  
   if (processedDownloads.has(hashKey)) {
-    console.log(`⚠️ Duplicate download detected at registration, skipping: ${fileName}`);
-    sendResponse({ success: false, message: 'Duplicate download prevented' });
+    console.log(`⚠️ Duplicate download detected by hash, skipping: ${fileName}`);
+    sendResponse({ success: false, message: 'Duplicate download prevented (hash match)' });
+    return;
+  }
+  
+  if (processedFileNames.has(secondaryKey)) {
+    console.log(`⚠️ Duplicate download detected by filename, skipping: ${fileName}`);
+    sendResponse({ success: false, message: 'Duplicate download prevented (filename match)' });
     return;
   }
   
   // Mark as processed immediately to prevent race conditions
   processedDownloads.add(hashKey);
+  processedFileNames.add(secondaryKey);
   
   // Store metadata with hash key
   const metadata = {

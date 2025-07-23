@@ -69,6 +69,28 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // Handle scan mode change to show/hide custom date picker
+  const scanModeSelect = document.getElementById('scanMode') as HTMLSelectElement;
+  const customDateSection = document.getElementById('customDateSection') as HTMLDivElement;
+  const customDateInput = document.getElementById('customDate') as HTMLInputElement;
+  
+  // Set default max date (today) and min date (30 days ago)
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+  
+  customDateInput.max = today.toISOString().split('T')[0];
+  customDateInput.min = thirtyDaysAgo.toISOString().split('T')[0];
+  customDateInput.value = today.toISOString().split('T')[0]; // Default to today
+  
+  scanModeSelect.addEventListener('change', function() {
+    if (scanModeSelect.value === 'custom') {
+      customDateSection.style.display = 'block';
+    } else {
+      customDateSection.style.display = 'none';
+    }
+  });
+
   // Scan PDFs button functionality
   scanPDFsButton.addEventListener('click', function() {
     if (isScanning) {
@@ -76,9 +98,42 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    // Get selected scan days
-    const scanDaysSelect = document.getElementById('scanDays') as HTMLSelectElement;
-    const scanDays = parseInt(scanDaysSelect.value) || 1;
+    // Get selected scan mode and determine date range
+    const scanMode = scanModeSelect.value;
+    let scanDays: number;
+    let customDate: string | null = null;
+    
+    if (scanMode === 'custom') {
+      const selectedDate = customDateInput.value;
+      if (!selectedDate) {
+        showMessage('⚠️ Please select a date', 'warning');
+        return;
+      }
+      
+      // Validate date is not more than 30 days ago
+      const selected = new Date(selectedDate);
+      const maxPastDate = new Date(today);
+      maxPastDate.setDate(today.getDate() - 30);
+      
+      if (selected < maxPastDate) {
+        showMessage('⚠️ Date cannot be more than 30 days ago', 'warning');
+        return;
+      }
+      
+      if (selected > today) {
+        showMessage('⚠️ Date cannot be in the future', 'warning');
+        return;
+      }
+      
+      customDate = selectedDate;
+      // Calculate days difference for legacy compatibility
+      const diffTime = today.getTime() - selected.getTime();
+      scanDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    } else {
+      // Parse days from the mode value (e.g., "days-7" -> 7)
+      scanDays = parseInt(scanMode.split('-')[1]) || 1;
+    }
+    
     currentScanDays = scanDays; // Store current scan range
     
     // Send message to active tab to scan for PDFs with progress updates
@@ -86,10 +141,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const currentTab = tabs[0];
       if (currentTab?.id && currentTab.url?.includes('wx.zsxq.com')) {
         const tabId = currentTab.id as number;
-        // Trigger the progressive scan with selected days
+        // Trigger the progressive scan with selected days and custom date
         chrome.tabs.sendMessage(tabId, { 
           action: 'scanPDFsWithProgress',
-          scanDays: scanDays 
+          scanDays: scanDays,
+          customDate: customDate
         }, (response) => {
           // Final response handling (scan completion is handled via progress messages)
           if (!response || !response.success) {

@@ -471,8 +471,13 @@ function scanSinglePDF(pdfElement: HTMLElement, pdfIndex: number): Promise<PDFIn
 }
 
 // Function to scan all PDFs and return results for popup
-async function scanAllPDFsForPopup(scanDays: number = 1): Promise<{success: boolean, pdfs: any[], eligible: number}> {
-  const scanDescription = scanDays === 1 ? 'today' : `last ${scanDays} days`;
+async function scanAllPDFsForPopup(scanDays: number = 1, customDate: string | null = null): Promise<{success: boolean, pdfs: any[], eligible: number}> {
+  let scanDescription: string;
+  if (customDate) {
+    scanDescription = `since ${customDate}`;
+  } else {
+    scanDescription = scanDays === 1 ? 'today' : `last ${scanDays} days`;
+  }
   console.log(`🔍 Starting popup scan with content loading (${scanDescription})...`);
   
   // First scroll down to load all content
@@ -497,8 +502,13 @@ async function scanAllPDFsForPopup(scanDays: number = 1): Promise<{success: bool
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
     
     if (pdfInfo) {
-      // Include PDFs based on scan range
-      const isInRange = scanDays === 1 ? isToday(pdfInfo.uploadDate) : isWithinLastDays(pdfInfo.uploadDate, scanDays);
+      // Include PDFs based on scan range or custom date
+      let isInRange: boolean;
+      if (customDate) {
+        isInRange = isSinceCustomDate(pdfInfo.uploadDate, customDate);
+      } else {
+        isInRange = scanDays === 1 ? isToday(pdfInfo.uploadDate) : isWithinLastDays(pdfInfo.uploadDate, scanDays);
+      }
       
       if (isInRange) {
         scannedPDFs.push({
@@ -540,8 +550,13 @@ async function scanAllPDFsForPopup(scanDays: number = 1): Promise<{success: bool
 }
 
 // Function to scan all PDFs and return results for popup with incremental updates
-async function scanAllPDFsWithProgress(scanDays: number = 1): Promise<{success: boolean, pdfs: any[], eligible: number}> {
-  const scanDescription = scanDays === 1 ? 'today' : `last ${scanDays} days`;
+async function scanAllPDFsWithProgress(scanDays: number = 1, customDate: string | null = null): Promise<{success: boolean, pdfs: any[], eligible: number}> {
+  let scanDescription: string;
+  if (customDate) {
+    scanDescription = `since ${customDate}`;
+  } else {
+    scanDescription = scanDays === 1 ? 'today' : `last ${scanDays} days`;
+  }
   console.log(`🔍 Starting progressive popup scan with content loading (${scanDescription})...`);
   
   // First scroll down to load all content
@@ -577,8 +592,13 @@ async function scanAllPDFsWithProgress(scanDays: number = 1): Promise<{success: 
     const pdfInfo = await scanSinglePDF(allPDFs[i], i);
     
     if (pdfInfo) {
-      // Include PDFs based on scan range
-      const isInRange = scanDays === 1 ? isToday(pdfInfo.uploadDate) : isWithinLastDays(pdfInfo.uploadDate, scanDays);
+      // Include PDFs based on scan range or custom date
+      let isInRange: boolean;
+      if (customDate) {
+        isInRange = isSinceCustomDate(pdfInfo.uploadDate, customDate);
+      } else {
+        isInRange = scanDays === 1 ? isToday(pdfInfo.uploadDate) : isWithinLastDays(pdfInfo.uploadDate, scanDays);
+      }
       
       if (isInRange) {
         scannedPDFs.push({
@@ -727,14 +747,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'scanPDFsWithResults') {
     // Perform scan and return results with download counts
     const scanDays = request.scanDays || 1; // Default to today if not specified
-    scanAllPDFsForPopup(scanDays).then((results) => {
+    const customDate = request.customDate || null; // Custom date if provided
+    scanAllPDFsForPopup(scanDays, customDate).then((results) => {
       sendResponse(results);
     });
     return true; // Keep the message channel open for async response
   } else if (request.action === 'scanPDFsWithProgress') {
     // Perform progressive scan with real-time updates
     const scanDays = request.scanDays || 1; // Default to today if not specified
-    scanAllPDFsWithProgress(scanDays).then((results) => {
+    const customDate = request.customDate || null; // Custom date if provided
+    scanAllPDFsWithProgress(scanDays, customDate).then((results) => {
       sendResponse(results);
     });
     return true; // Keep the message channel open for async response
@@ -851,6 +873,42 @@ function isWithinLastDays(dateString: string, days: number): boolean {
     return uploadDate >= daysAgo;
   } catch (error) {
     console.warn('Error parsing date:', dateString, error);
+    return false;
+  }
+}
+
+// Function to check if a date string is since a custom date
+function isSinceCustomDate(dateString: string, customDate: string): boolean {
+  if (!dateString || !customDate) return false;
+  
+  try {
+    // Parse the upload date string (assuming format like "2025-07-18" or "2025-07-18 00:28")
+    const uploadDateParts = dateString.split(' ')[0].split('-');
+    if (uploadDateParts.length !== 3) return false;
+    
+    const uploadYear = parseInt(uploadDateParts[0]);
+    const uploadMonth = parseInt(uploadDateParts[1]) - 1; // Month is 0-indexed
+    const uploadDay = parseInt(uploadDateParts[2]);
+    
+    const uploadDate = new Date(uploadYear, uploadMonth, uploadDay);
+    
+    // Parse the custom date (format: "YYYY-MM-DD")
+    const customDateParts = customDate.split('-');
+    if (customDateParts.length !== 3) return false;
+    
+    const customYear = parseInt(customDateParts[0]);
+    const customMonth = parseInt(customDateParts[1]) - 1; // Month is 0-indexed
+    const customDay = parseInt(customDateParts[2]);
+    
+    const sinceDate = new Date(customYear, customMonth, customDay);
+    
+    // Reset time to start of day for accurate comparison
+    uploadDate.setHours(0, 0, 0, 0);
+    sinceDate.setHours(0, 0, 0, 0);
+    
+    return uploadDate >= sinceDate;
+  } catch (error) {
+    console.warn('Error parsing dates:', dateString, customDate, error);
     return false;
   }
 }

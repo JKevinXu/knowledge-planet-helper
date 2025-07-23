@@ -303,7 +303,7 @@
       <div class="action-section">
         <div class="section-title">Scan Options</div>
         <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
-          <select id="scanDays" style="
+          <select id="scanMode" style="
             padding: 4px 8px; 
             border: 1px solid #dee2e6; 
             border-radius: 4px; 
@@ -311,12 +311,32 @@
             background: white;
             flex: 1;
           ">
-            <option value="1">📅 Today only</option>
-            <option value="3">📅 Last 3 days</option>
+            <option value="days-1">📅 Today only</option>
+            <option value="days-3">📅 Last 3 days</option>
+            <option value="days-7">📅 Last week</option>
+            <option value="days-14">📅 Last 2 weeks</option>
+            <option value="days-30">📅 Last month</option>
+            <option value="custom">📅 Since date...</option>
           </select>
           <button id="scanPDFs" style="padding: 6px 12px; font-size: 12px; margin: 0; width: auto;">
             🔍 Scan
           </button>
+        </div>
+        <div id="customDateSection" style="display: none; margin-bottom: 12px;">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <label style="font-size: 11px; color: #666; flex-shrink: 0;">Since:</label>
+            <input type="date" id="customDate" style="
+              padding: 4px 8px; 
+              border: 1px solid #dee2e6; 
+              border-radius: 4px; 
+              font-size: 11px; 
+              background: white;
+              flex: 1;
+            ">
+          </div>
+          <div style="font-size: 10px; color: #666; margin-top: 4px;">
+            ⚠️ Maximum 30 days ago
+          </div>
         </div>
         <div class="section-title">Scanned PDFs</div>
         <div id="pdfList" class="pdf-list">
