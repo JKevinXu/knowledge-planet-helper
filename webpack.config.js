@@ -26,7 +26,14 @@ module.exports = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        { from: 'popup.html', to: 'popup.html' },
+        { 
+          from: 'popup.html', 
+          to: 'popup.html',
+          transform(content) {
+            // Fix the popup.html to point to the correct script path (remove "dist/" prefix)
+            return content.toString().replace('src="dist/popup.js"', 'src="popup.js"');
+          }
+        },
         { 
           from: 'manifest.json', 
           to: 'manifest.json',
