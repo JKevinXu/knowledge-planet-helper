@@ -1,6 +1,6 @@
 {
   "name": "knowledge-planet-pdf-downloader",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Chrome extension to download PDFs from Knowledge Planet",
   "scripts": {
     "build": "webpack --mode production",
