@@ -20,10 +20,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (message.action === 'scanProgress') {
       handleScanProgress(message);
     } else if (message.action === 'downloadSuccess') {
-      showMessage(`✅ COMPLETED: ${message.fileName}`, 'success');
+      showMessage(`✅ 完成: ${message.fileName}`, 'success');
       loadDownloadStats(); // Refresh stats after successful download
     } else if (message.action === 'downloadFailed') {
-      showMessage(`❌ FAILED: ${message.fileName} - ${message.reason}`, 'error');
+      showMessage(`❌ 失败: ${message.fileName} - ${message.reason}`, 'error');
     }
   });
 
@@ -33,17 +33,17 @@ document.addEventListener('DOMContentLoaded', function() {
   // Handle scan progress updates
   function handleScanProgress(progress: any) {
     const { type, total, scanned, eligible, pdfs, currentPdf, scanDays } = progress;
-    const scanDescription = scanDays === 1 ? 'today' : `last ${scanDays} days`;
+    const scanDescription = scanDays === 1 ? '今天' : `最近${scanDays}天`;
     
     if (type === 'start') {
       isScanning = true;
       scanPDFsButton.disabled = true;
-      scanPDFsButton.textContent = `🔄 Starting scan...`;
+      scanPDFsButton.textContent = `🔄 开始扫描...`;
       scannedPDFs = [];
       updatePDFList();
-      showMessage(`🔍 Starting scan of ${total} PDFs (${scanDescription})...`, 'success');
+      showMessage(`🔍 开始扫描 ${total} 个PDF（${scanDescription}）...`, 'success');
     } else if (type === 'progress') {
-      scanPDFsButton.textContent = `🔄 Scanning ${scanned}/${total}...`;
+      scanPDFsButton.textContent = `🔄 扫描中 ${scanned}/${total}...`;
       scannedPDFs = [...pdfs]; // Update with current results
       updatePDFList();
       
@@ -51,20 +51,20 @@ document.addEventListener('DOMContentLoaded', function() {
       
       
       if (currentPdf) {
-        const status = currentPdf.downloadCount >= 5 ? '✅ Eligible' : '⏳ Not eligible';
-        showMessage(`📄 ${currentPdf.fileName} - ${currentPdf.downloadCount} downloads (${status})`, 'success');
+        const status = currentPdf.downloadCount >= 5 ? '✅ 符合条件' : '⏳ 不符合条件';
+        showMessage(`📄 ${currentPdf.fileName} - ${currentPdf.downloadCount} 次下载（${status}）`, 'success');
       }
     } else if (type === 'complete') {
       isScanning = false;
       scanPDFsButton.disabled = false;
-      scanPDFsButton.textContent = '🔍 Scan';
+      scanPDFsButton.textContent = '🔍 扫描';
       scannedPDFs = [...pdfs];
       updatePDFList();
       
       // Update final stats
       
       
-      showMessage(`✅ Scan complete! Found ${eligible} eligible PDFs from ${scanDescription}`, 'success');
+      showMessage(`✅ 扫描完成！从${scanDescription}找到 ${eligible} 个符合条件的PDF`, 'success');
       loadDownloadStats(); // Refresh stats
     }
   }
@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Scan PDFs button functionality
   scanPDFsButton.addEventListener('click', function() {
     if (isScanning) {
-      showMessage('⚠️ Scan already in progress...', 'warning');
+      showMessage('⚠️ 扫描正在进行中...', 'warning');
       return;
     }
     
@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (scanMode === 'custom') {
       const selectedDate = customDateInput.value;
       if (!selectedDate) {
-        showMessage('⚠️ Please select a date', 'warning');
+        showMessage('⚠️ 请选择日期', 'warning');
         return;
       }
       
@@ -116,12 +116,12 @@ document.addEventListener('DOMContentLoaded', function() {
       maxPastDate.setDate(today.getDate() - 30);
       
       if (selected < maxPastDate) {
-        showMessage('⚠️ Date cannot be more than 30 days ago', 'warning');
+        showMessage('⚠️ 日期不能超过30天前', 'warning');
         return;
       }
       
       if (selected > today) {
-        showMessage('⚠️ Date cannot be in the future', 'warning');
+        showMessage('⚠️ 日期不能是未来', 'warning');
         return;
       }
       
@@ -151,12 +151,12 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!response || !response.success) {
             isScanning = false;
             scanPDFsButton.disabled = false;
-            scanPDFsButton.textContent = '🔍 Scan';
-            showMessage('⚠️ No PDF files detected. Please make sure you are viewing a Knowledge Planet file gallery page with PDFs.', 'warning');
+            scanPDFsButton.textContent = '🔍 扫描';
+            showMessage('⚠️ 未检测到PDF文件。请确保您正在查看知识星球文件库页面。', 'warning');
           }
         });
       } else {
-        showMessage('❌ Please visit a Knowledge Planet page first', 'error');
+        showMessage('❌ 请先访问知识星球页面', 'error');
       }
     });
   });
@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
     } catch (error) {
       console.error('Error loading download stats:', error);
-      showMessage('❌ Error loading stats', 'error');
+      showMessage('❌ 加载统计信息出错', 'error');
     }
   }
 
@@ -200,8 +200,8 @@ document.addEventListener('DOMContentLoaded', function() {
       pdfListElement.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📄</div>
-          <div class="empty-text">No PDF files found on this page</div>
-          <div class="empty-subtext">Try navigating to a Knowledge Planet file gallery with PDFs.</div>
+          <div class="empty-text">页面上没有找到PDF文件</div>
+          <div class="empty-subtext">请尝试浏览知识星球文件库页面。</div>
         </div>
       `;
       return;
@@ -215,8 +215,8 @@ document.addEventListener('DOMContentLoaded', function() {
       pdfListElement.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📄</div>
-          <div class="empty-text">No eligible PDFs found</div>
-          <div class="empty-subtext">Scanned ${totalScanned} PDFs - none have 5+ downloads</div>
+          <div class="empty-text">没有找到符合条件的PDF</div>
+          <div class="empty-subtext">已扫描 ${totalScanned} 个PDF - 没有5次以上下载的</div>
         </div>
       `;
       return;
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <div class="pdf-name" title="${pdf.fileName}">📄 ${shortName}</div>
               <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;">
-                  <div class="pdf-downloads eligible">${pdf.downloadCount} downloads</div>
+                  <div class="pdf-downloads eligible">${pdf.downloadCount} 次下载</div>
                   ${uploadDate ? `
                     <div class="pdf-date" style="font-size: 11px; color: #666;">
                       📅 ${uploadDate}
@@ -259,10 +259,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add note about filtering and batch controls
     const eligibleCount = eligiblePDFs.length;
-    const scanDescription = currentScanDays === 1 ? "today's" : `last ${currentScanDays} days'`;
+    const scanDescription = currentScanDays === 1 ? "今天" : `最近${currentScanDays}天`;
     const filterNote = `
       <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; color: #6c757d;">
-        ℹ️ Showing only ${scanDescription} PDFs with 5+ downloads (${eligibleCount} eligible)
+        ℹ️ 仅显示${scanDescription}下载5次以上的PDF（${eligibleCount}个符合条件）
       </div>
     `;
     pdfListElement.insertAdjacentHTML('afterbegin', filterNote);
@@ -272,14 +272,14 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="batch-controls" style="margin-top: 10px; padding: 8px; border-top: 1px solid #ddd;">
           <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
             <span style="font-size: 11px; color: #666; flex-shrink: 0;">
-              <span id="selected-count">0</span> of ${eligibleCount} selected
+              已选择 <span id="selected-count">0</span> / ${eligibleCount}
             </span>
             <div style="display: flex; gap: 6px;">
               <button id="select-all-btn" class="pdf-btn" style="font-size: 10px; padding: 3px 6px; width: auto; min-width: auto;">
-                Select All
+                全选
               </button>
               <button id="download-selected-btn" class="pdf-btn pdf-btn-download" style="font-size: 10px; padding: 3px 8px; opacity: 0.5; width: auto; min-width: auto;" disabled>
-                ⬇️ Download
+                ⬇️ 下载
               </button>
             </div>
           </div>
@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function() {
           
           if (chrome.runtime.lastError) {
             console.error('Download message error:', chrome.runtime.lastError);
-            showMessage(`❌ Failed to start download: ${pdf.fileName}`, 'error');
+            showMessage(`❌ 下载失败: ${pdf.fileName}`, 'error');
           } else if (response?.status) {
             console.log(`🔄 Download queued:`, response.status);
           }
@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Re-enable button
         target.removeAttribute('disabled');
         target.textContent = '⬇️';
-        showMessage(`❌ No active tab found`, 'error');
+        showMessage(`❌ 未找到活动标签页`, 'error');
       }
     });
   }
@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (selectAllBtn) {
       const eligiblePDFs = scannedPDFs.filter(pdf => pdf.downloadCount >= 5);
       const allSelected = eligiblePDFs.length > 0 && selectedPDFs.size === eligiblePDFs.length;
-      selectAllBtn.textContent = allSelected ? 'Deselect All' : 'Select All';
+      selectAllBtn.textContent = allSelected ? '取消全选' : '全选';
     }
   }
 
@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const batchDownloadBtn = document.getElementById('download-selected-btn') as HTMLButtonElement;
     if (batchDownloadBtn) {
       batchDownloadBtn.disabled = true;
-      batchDownloadBtn.textContent = 'Queueing...';
+      batchDownloadBtn.textContent = '队列中...';
     }
     
     for (let i = 0; i < uniquePDFList.length; i++) {
@@ -473,7 +473,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Re-enable the batch download button
     if (batchDownloadBtn) {
       batchDownloadBtn.disabled = false;
-      batchDownloadBtn.textContent = '⬇️ Download';
+      batchDownloadBtn.textContent = '⬇️ 下载';
     }
     
     // Clear selections
@@ -523,7 +523,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const downloadedPDFs = result.downloadedPDFs || [];
       
       if (downloadedPDFs.length === 0) {
-        messageDiv.innerHTML = '<div style="color: #fff; font-size: 11px;">No downloads yet!</div>';
+        messageDiv.innerHTML = '<div style="color: #fff; font-size: 11px;">暂无下载记录!</div>';
         return;
       }
       
@@ -551,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function() {
             overflow-y: auto;
           ">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-              <strong>📄 Download History</strong>
+              <strong>📄 下载历史</strong>
               <button id="close-history" style="
                 background: rgba(255,255,255,0.2);
                 border: none;
@@ -573,7 +573,7 @@ document.addEventListener('DOMContentLoaded', function() {
               ">
                 <div style="font-weight: bold; margin-bottom: 5px;">${pdf.fileName}</div>
                 <div style="opacity: 0.8; font-size: 9px;">
-                  Downloads: ${pdf.downloadCount} | ${new Date(pdf.downloadedAt).toLocaleDateString()}
+                  下载次数: ${pdf.downloadCount} | ${new Date(pdf.downloadedAt).toLocaleDateString()}
                 </div>
               </div>
             `).join('')}

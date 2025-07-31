@@ -301,7 +301,7 @@
   <div class="sidebar">
     <div class="sidebar-content">
       <div class="action-section">
-        <div class="section-title">Scan Options</div>
+        <div class="section-title">扫描选项</div>
         <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
           <select id="scanMode" style="
             padding: 4px 8px; 
@@ -311,20 +311,20 @@
             background: white;
             flex: 1;
           ">
-            <option value="days-1">📅 Today only</option>
-            <option value="days-3">📅 Last 3 days</option>
-            <option value="days-7">📅 Last week</option>
-            <option value="days-14">📅 Last 2 weeks</option>
-            <option value="days-30">📅 Last month</option>
-            <option value="custom">📅 Since date...</option>
+            <option value="days-1">📅 仅今天</option>
+            <option value="days-3">📅 最近3天</option>
+            <option value="days-7">📅 最近一周</option>
+            <option value="days-14">📅 最近两周</option>
+            <option value="days-30">📅 最近一个月</option>
+            <option value="custom">📅 自定义日期...</option>
           </select>
           <button id="scanPDFs" style="padding: 6px 12px; font-size: 12px; margin: 0; width: auto;">
-            🔍 Scan
+            🔍 扫描
           </button>
         </div>
         <div id="customDateSection" style="display: none; margin-bottom: 12px;">
           <div style="display: flex; gap: 8px; align-items: center;">
-            <label style="font-size: 11px; color: #666; flex-shrink: 0;">Since:</label>
+            <label style="font-size: 11px; color: #666; flex-shrink: 0;">起始日期:</label>
             <input type="date" id="customDate" style="
               padding: 4px 8px; 
               border: 1px solid #dee2e6; 
@@ -335,15 +335,15 @@
             ">
           </div>
           <div style="font-size: 10px; color: #666; margin-top: 4px;">
-            ⚠️ Maximum 30 days ago
+            ⚠️ 最多30天前
           </div>
         </div>
-        <div class="section-title">Scanned PDFs</div>
+        <div class="section-title">已扫描PDF</div>
         <div id="pdfList" class="pdf-list">
           <div class="empty-state">
             <div class="empty-icon">📄</div>
-            <div class="empty-text">No PDFs scanned yet</div>
-            <div class="empty-subtext">Click "Scan Current Page" to find PDFs</div>
+            <div class="empty-text">尚未扫描PDF</div>
+            <div class="empty-subtext">点击"扫描"查找PDF文件</div>
           </div>
         </div>
       </div>
